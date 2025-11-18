@@ -564,6 +564,12 @@ async showItemDetails(listing, isPurchasable = true) {
                             <span class="stat-value">${this.escapeHtml(listing.seller_name)}</span>
                         </div>
                         ` : ''}
+                        ${listing.buyer_name ? `
+                        <div class="stat-row">
+                            <span class="stat-label">Buyer:</span>
+                            <span class="stat-value">${this.escapeHtml(listing.buyer_name)}</span>
+                        </div>
+                        ` : ''}
                         ${listing.charges ? `
                         <div class="stat-row">
                             <span class="stat-label">Charges:</span>

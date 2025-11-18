@@ -779,7 +779,7 @@ if (typeof MarketplaceApp !== 'undefined') {
                 this.showItemDetails({
                     item_id: wtb.item_id,
                     item_name: wtb.item_name,
-                    seller_name: wtb.buyer_name,
+                    buyer_name: wtb.buyer_name,  // Use buyer_name for WTB orders
                     quantity: wtb.quantity_remaining,
                     price_copper: wtb.price_per_unit_copper,
                     icon: wtb.icon

@@ -1,251 +1,197 @@
 # EQEMU Marketplace - Solo Leveling Offline Bazaar
 
-A comprehensive web-based marketplace system for EverQuest Emulator (EQEMU) servers, allowing players to buy and sell items through an intuitive web interface with in-game NPC integration.
+![PHP](https://img.shields.io/badge/php-%23777BB4.svg?style=for-the-badge&logo=php&logoColor=white)![MySQL](https://img.shields.io/badge/mysql-%2300f.svg?style=for-the-badge&logo=mysql&logoColor=white)![JavaScript](https://img.shields.io/badge/javascript-%23323330.svg?style=for-the-badge&logo=javascript&logoColor=%23F7DF1E)
+
+A comprehensive web-based marketplace system for EverQuest Emulator servers, allowing players to buy and sell items through an intuitive web interface with in-game NPC integration.
 
 ## Features
 
-### Core Marketplace
-- **Browse Listings** - View all available items for sale with detailed stats and pricing
-- **Advanced Search** - Filter by item name, type, class, price range, and detailed item statistics
+- **Browse & Purchase** - View all available items with detailed stats, purchase directly through the web
 - **List Items** - In-game NPC integration for easy listing creation
-- **Purchase Items** - Buy items directly through the web interface, delivered via in-game parcel system
-- **Transaction History** - Track all your purchases and sales
-- **Earnings Management** - Claim your earnings directly to your characters in-game
-
-### Want to Buy (WTB) System
-- **Create WTB Orders** - Post what items you're looking for with your offering price
-- **Browse WTB Orders** - See what other players want to buy
-- **WTB Fulfillment** - Sell directly to buyers through WTB orders
-- **Auto-Matching** - Automatic notifications when someone lists an item you're looking for
-
-### Watchlist & Notifications
-- **Watchlist** - Save items you're interested in with price and stat requirements
-- **Smart Notifications** - Get notified when:
-  - An item on your watchlist is listed
-  - Your WTB order is fulfilled
-  - Your listing sells
-  - Your listing expires
-  - Someone lists an item matching your WTB order
-- **Real-time Alerts** - Notification bell with unread count badge
-
-### Enhanced Features
+- **Want to Buy (WTB)** - Post what you're looking for, sellers can fulfill your orders
+- **Watchlist & Notifications** - Track items and get notified when they're listed
 - **Multi-Account Support** - Link multiple game accounts to one marketplace profile
-- **Character Selection** - Choose which character to use for purchases
-- **Item Statistics** - View complete item stats including AC, HP, Mana, Resistances, and Attributes
-- **Stat-Based Filtering** - Filter items by minimum stat requirements
-- **Mobile Responsive** - iOS-style bottom navigation for mobile devices
-- **Admin Panel** - Manage all listings, WTB orders, and users
+- **Earnings Management** - Claim your sales earnings directly to your characters
+- **Advanced Search** - Filter by item name, stats, price range, and more
+- **Mobile Responsive** - Works great on desktop and mobile devices
+- **Admin Panel** - Comprehensive admin tools for marketplace management
 
-## Technology Stack
+## Requirements
 
-- **Frontend**: Vanilla JavaScript, HTML5, CSS3
-- **Backend**: PHP 7.4+, MySQL 5.7+
-- **Authentication**: JWT (JSON Web Tokens)
-- **In-Game Integration**: Perl quest scripts for EQEMU
-- **Database**: MySQL with the EQEMU PEQ database
+- **EQEMU Server** running PEQ database
+- **PHP >= 7.4** (PHP 8.0+ recommended)
+- **MySQL >= 5.7** or **MariaDB >= 10.3**
+- **Apache 2.4+** or **Nginx 1.18+** with mod_rewrite
+- **Perl 5.10+** with JSON module
+
+## Installation
+
+### Local Development Setup (Linux)
+
+```bash
+# Clone to a directory outside your web root
+cd /home/yourusername
+git clone https://github.com/Zero-Hex/eqemu-marketplace-solo.git marketplace
+cd marketplace
+
+# Configure environment
+cp .env_example .env
+nano .env  # Edit with your database credentials
+
+# Import database
+mysql -u root -p peq < install/sql/fresh_install.sql
+
+# Configure Apache virtual host (point DocumentRoot to public/ subdirectory)
+sudo nano /etc/apache2/sites-available/marketplace.conf
+```
+
+**Apache Virtual Host Configuration:**
+```apache
+<VirtualHost *:8080>
+    ServerName marketplace.local
+    DocumentRoot /home/yourusername/marketplace/public  # Point to public/ subdirectory
+
+    <Directory /home/yourusername/marketplace/public>
+        Options -Indexes +FollowSymLinks
+        AllowOverride All
+        Require all granted
+    </Directory>
+</VirtualHost>
+```
+
+```bash
+# Enable site and restart Apache
+sudo a2enmod rewrite
+sudo a2ensite marketplace.conf
+sudo systemctl restart apache2
+
+# Copy quest scripts to your EQEMU server
+cp install/quests/*.pl /path/to/eqemu/server/quests/global/
+```
+
+Access at `http://marketplace.local:8080`
+
+### Local Development Setup (Windows/XAMPP)
+
+```cmd
+REM Clone or extract to C:\Marketplace\
+cd C:\Marketplace
+
+REM Configure environment
+copy .env_example .env
+notepad .env
+
+REM Import database
+C:\xampp\mysql\bin\mysql -u root -p peq < install\sql\fresh_install.sql
+```
+
+**XAMPP Virtual Host Configuration:**
+
+Edit `C:\xampp\apache\conf\extra\httpd-vhosts.conf`:
+```apache
+<VirtualHost *:8080>
+    ServerName marketplace.local
+    DocumentRoot "C:/Marketplace/public"  # Point to public subdirectory
+
+    <Directory "C:/Marketplace/public">
+        Options -Indexes +FollowSymLinks
+        AllowOverride All
+        Require all granted
+    </Directory>
+</VirtualHost>
+```
+
+Restart Apache in XAMPP Control Panel, then access at `http://localhost:8080`
+
+### Production Deployment
+
+Always install outside your publicly accessible web directory. Point your Apache DocumentRoot to the `/public` subdirectory only.
+
+```bash
+# Install to /home/eqemu/marketplace/ (NOT in web root)
+# Point DocumentRoot to /home/eqemu/marketplace/public
+
+# Generate secure JWT secret
+openssl rand -hex 32
+
+# Update .env with production values
+nano .env
+
+# Set DEBUG_MODE=false
+# Set ALLOWED_ORIGIN=https://yourdomain.com
+# Use strong JWT_SECRET from above
+
+# Set up SSL (recommended)
+sudo certbot --apache -d marketplace.yourdomain.com
+```
+
+### Directory Structure
+
+```
+marketplace/                    # Application root (NOT web-accessible)
+├── .env                       # Configuration (database passwords, JWT secret)
+├── install/                   # Quest scripts and SQL files (NOT web-accessible)
+│   ├── quests/               # Perl quest scripts for EQEMU
+│   └── sql/                  # Database schema and migrations
+└── public/                   # DocumentRoot points HERE (web-accessible only)
+    ├── index.html           # Application entry point
+    ├── api/                 # PHP backend endpoints
+    ├── css/                 # Stylesheets
+    └── js/                  # JavaScript application
+```
+
+**Security:** Only the `public/` directory is web-accessible. The `.env` file and `install/` scripts remain protected outside the web root.
+
+## Configuration
+
+### Environment Variables
+
+All configuration is done via the `.env` file (never commit this to git):
+
+```env
+# Database Configuration
+DB_HOST=localhost
+DB_NAME=peq
+DB_USER=your_mysql_username
+DB_PASS=your_mysql_password
+
+# Security (generate with: openssl rand -hex 32)
+JWT_SECRET=your-secure-random-string
+
+# Alternate Currency (Optional - defaults to platinum-only)
+USE_ALT_CURRENCY=false
+ALT_CURRENCY_ITEM_ID=147623
+ALT_CURRENCY_VALUE_PLATINUM=1000000
+ALT_CURRENCY_NAME=Bitcoin
+```
+
+### Alternate Currency
+
+By default, the marketplace uses **platinum-only** transactions. To enable alternate currency for high-value items, set `USE_ALT_CURRENCY=true` in `.env` and update the matching settings in `install/quests/Marketplace_Broker.pl`.
+
+## Documentation
+
+- **[INSTALL.md](INSTALL.md)** - Complete installation guide with troubleshooting
+- **[install/sql/README.md](install/sql/README.md)** - Database migration guide
 
 ## Screenshots
 
 The marketplace features a modern, dark-themed interface optimized for both desktop and mobile devices.
 
-## Quick Start
-
-For detailed installation instructions, see [INSTALL.md](INSTALL.md)
-
-### Prerequisites
-- EQEMU server (running PEQ database)
-- PHP 7.4 or higher
-- MySQL 5.7 or higher
-- Apache or Nginx web server
-- Perl with JSON module (for quest scripts)
-
-### Basic Installation
-1. Clone this repository to your web server
-2. Import SQL files from `/install/sql/` in order
-3. Copy quest scripts from `/install/quests/` to your EQEMU server
-4. Configure database connection in `api/config.php`
-5. Access the marketplace through your web browser
-
-## Documentation
-
-- **[INSTALL.md](INSTALL.md)** - Complete installation guide
-- **[CODE_REVIEW.md](CODE_REVIEW.md)** - Code optimization and bug fixes
-- **[ENHANCED_FEATURES.md](ENHANCED_FEATURES.md)** - Detailed feature documentation
-
-## Project Structure
-
-```
-eqemu-marketplace/
-├── api/                    # PHP backend API endpoints
-│   ├── auth/              # Authentication endpoints
-│   ├── listings/          # Marketplace listing endpoints
-│   ├── wtb/               # Want to Buy endpoints
-│   ├── watchlist/         # Watchlist endpoints
-│   ├── notifications/     # Notification endpoints
-│   ├── accounts/          # Account management
-│   ├── config.php         # Database configuration
-│   └── database.php       # Database helper class
-├── css/                   # Stylesheets
-│   ├── styles.css        # Main stylesheet
-│   └── enhanced-features.css  # Additional features styling
-├── js/                    # JavaScript files
-│   ├── app.js            # Main application logic
-│   ├── app-enhanced.js   # Enhanced features
-│   └── api.js            # API client
-├── install/              # Installation files
-│   ├── sql/              # Database migration files
-│   └── quests/           # EQEMU quest scripts
-├── index.html            # Main application page
-├── .env_example          # Environment configuration template
-└── README.md             # This file
-```
-
-## API Endpoints
-
-### Authentication
-- `POST /api/auth/register.php` - Register new marketplace account
-- `POST /api/auth/login.php` - Login to marketplace
-- `POST /api/auth/verify.php` - Verify JWT token
-
-### Listings
-- `GET /api/listings/list.php` - Get all active listings
-- `GET /api/listings/my-listings.php` - Get user's listings
-- `POST /api/listings/create.php` - Create new listing (NPC integration)
-- `POST /api/listings/purchase.php` - Purchase an item
-- `POST /api/listings/cancel.php` - Cancel a listing
-
-### Want to Buy
-- `GET /api/wtb/list.php` - Get all active WTB orders
-- `GET /api/wtb/my-wtb.php` - Get user's WTB orders
-- `POST /api/wtb/create.php` - Create WTB order
-- `POST /api/wtb/cancel.php` - Cancel WTB order
-
-### Watchlist
-- `GET /api/watchlist/my-watchlist.php` - Get user's watchlist
-- `POST /api/watchlist/add.php` - Add item to watchlist
-- `POST /api/watchlist/remove.php` - Remove from watchlist
-
-### Notifications
-- `GET /api/notifications/list.php` - Get notifications
-- `POST /api/notifications/mark-read.php` - Mark as read
-
-## Configuration
-
-Edit `api/config.php` to configure database connection and other settings:
-
-```php
-// Database Configuration
-define('DB_HOST', 'localhost');
-define('DB_NAME', 'peq');
-define('DB_USER', 'your_user');
-define('DB_PASS', 'your_password');
-
-// JWT Secret (change this!)
-define('JWT_SECRET', 'your-secure-random-string');
-
-// Application Settings
-define('LISTING_EXPIRATION_DAYS', 7);
-define('MAX_LISTINGS_PER_USER', 50);
-```
-
-## In-Game Integration
-
-### Marketplace Broker NPC
-
-The marketplace uses an NPC called "Marketplace_Broker" that players interact with to:
-- List items for sale
-- Fulfill WTB orders
-- Claim purchased items (via parcel system)
-- Claim earnings
-
-### Quest Script Location
-Place the quest scripts in your EQEMU server's quest directory:
-```
-eqemu-server/quests/global/Marketplace_Broker.pl
-eqemu-server/quests/global/global_player.pl
-```
-
-## Database Schema
-
-The marketplace adds the following tables to your EQEMU database:
-
-- `marketplace_users` - User accounts and authentication
-- `marketplace_listings` - Active and historical item listings
-- `marketplace_transactions` - Purchase history
-- `marketplace_wtb` - Want to Buy orders
-- `marketplace_wtb_fulfillments` - WTB fulfillment tracking
-- `marketplace_watchlist` - User watchlist items
-- `marketplace_notifications` - Notification system
-- `marketplace_linked_accounts` - Multi-account support
-- `marketplace_seller_earnings` - Pending earnings tracking
-- `marketplace_pending_payments` - Payment processing queue
-
-## Security Features
-
-- **JWT Authentication** - Secure token-based authentication
-- **SQL Injection Prevention** - All queries use prepared statements
-- **Character Ownership Verification** - Prevents unauthorized access
-- **Transaction Locking** - Prevents race conditions
-- **Self-Purchase Prevention** - Can't buy your own items
-- **NO TRADE Detection** - Prevents listing of non-tradable items
-
-## Browser Support
-
-- Chrome/Edge (recommended)
-- Firefox
-- Safari
-- Mobile browsers (iOS Safari, Chrome Mobile)
-
-## Performance
-
-- **Schema Caching** - Database schema queries cached per request
-- **Optimized Indexes** - Proper indexing on all critical columns
-- **Transaction Efficiency** - Atomic operations with proper locking
-- **Mobile Optimized** - Responsive design with lazy loading
-
-## Contributing
-
-This is a private server project. For bug reports or feature requests, contact the server administrator.
+*(Screenshots coming soon)*
 
 ## Known Limitations
 
+- Single server marketplace (does not support cross-server trading)
 - Email notifications not supported (in-game only)
 - Limited to EQEMU servers running PEQ database schema
-
-## Documentation
-
-- **[INSTALL.md](INSTALL.md)** - Complete installation guide with step-by-step instructions
-- **[ENHANCED_FEATURES.md](ENHANCED_FEATURES.md)** - WTB, Watchlist, and Notifications documentation
-- **[CODE_REVIEW.md](CODE_REVIEW.md)** - Previous code review and bug fixes (2025-11-14)
-- **[CODE_OPTIMIZATION_REPORT.md](CODE_OPTIMIZATION_REPORT.md)** - Comprehensive optimization analysis (2025-11-17)
-- **[install/sql/README.md](install/sql/README.md)** - Database installation and migration guide
-
-## Future Enhancements
-
-- Auction mode with time-limited bidding
-- Bundle listings (sell item sets together)
-- Item-for-item trade system
-- Reputation/rating system
-- Price history charts and analytics
-- Native mobile app
-- Email notification support
 
 ## License
 
 This project is intended for use with EverQuest Emulator servers. EverQuest is a registered trademark of Daybreak Game Company LLC.
 
-## Support
-
-For installation help or bug reports, refer to:
-- [INSTALL.md](INSTALL.md) for installation issues
-- [ENHANCED_FEATURES.md](ENHANCED_FEATURES.md) for feature documentation
-- Server administrator for in-game integration issues
+Licensed under the MIT License.
 
 ## Credits
 
 Developed for Solo Leveling Offline - An EverQuest Emulator Server
-
----
-
-**Version**: 1.0.0
-**Last Updated**: November 2025

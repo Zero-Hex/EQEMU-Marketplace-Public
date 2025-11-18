@@ -1,27 +1,29 @@
 // Configuration file for the EQEMU Marketplace
 const CONFIG = {
-    // API Base URL - Update this to your XAMPP server location
-    // For local XAMPP: http://localhost/eqemu-marketplace/api
-    API_BASE_URL: 'http://65.49.60.92/eqemu-marketplace/api',
-    
+    // API Base URL - Uses relative path to work on any domain/port
+    // This will automatically use the same protocol, domain, and port as the main site
+    API_BASE_URL: '/api',
+
     // Session storage keys
     STORAGE_KEYS: {
         USER: 'eqemu_user',
         TOKEN: 'eqemu_token',
         CHARACTERS: 'eqemu_characters'
     },
-    
+
     // Pagination
     ITEMS_PER_PAGE: 20,
-    
+
     // Currency conversion
     COPPER_TO_PLATINUM: 1000,
-    
+
     // Refresh intervals (in milliseconds)
     REFRESH_INTERVAL: 30000, // 30 seconds
-    
-    // Item icon base URL (if you have EQ item icons hosted)
-    ICON_BASE_URL: 'http://65.49.60.92:8000/img/icons/',
+
+    // Item icon base URL
+    // You can host EQ item icons or use a service like https://www.eqitems.com/
+    // Leave as empty string to use default emoji icons
+    ICON_BASE_URL: '',
     
     // Default icon for items without images
     DEFAULT_ICON: '🎒',

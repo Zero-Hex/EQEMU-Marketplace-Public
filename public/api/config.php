@@ -4,25 +4,90 @@ if (basename($_SERVER['PHP_SELF']) == basename(__FILE__)) {
     die('Direct access not permitted');
 }
 
-// Database configuration for EQEMU Marketplace
-// Update these values to match your EQEMU database settings
+// ============================================================================
+// Environment Configuration
+// ============================================================================
+// Load environment variables from .env file in application root (parent of public/)
+// The .env file should be located at: /path/to/eqemu-marketplace/.env
+// This keeps sensitive configuration outside the web-accessible public/ directory
 
-define('DB_HOST', 'localhost');
-define('DB_NAME', 'peq'); // Your EQEMU database name
-define('DB_USER', ''); // Your MySQL username (default for XAMPP)
-define('DB_PASS', ''); // Your MySQL password (empty by default for XAMPP)
+$envFile = dirname(__DIR__, 2) . '/.env';
+if (file_exists($envFile)) {
+    $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    foreach ($lines as $line) {
+        // Skip comments
+        if (strpos(trim($line), '#') === 0) continue;
+
+        // Parse KEY=VALUE pairs
+        if (strpos($line, '=') !== false) {
+            list($name, $value) = explode('=', $line, 2);
+            $name = trim($name);
+            $value = trim($value);
+
+            // Remove quotes if present
+            if ((substr($value, 0, 1) === '"' && substr($value, -1) === '"') ||
+                (substr($value, 0, 1) === "'" && substr($value, -1) === "'")) {
+                $value = substr($value, 1, -1);
+            }
+
+            $_ENV[$name] = $value;
+            putenv("$name=$value");
+        }
+    }
+}
+
+// Helper function to get environment variable with fallback
+function env($key, $default = null) {
+    return $_ENV[$key] ?? getenv($key) ?: $default;
+}
+
+// ============================================================================
+// Database Configuration
+// ============================================================================
+// IMPORTANT: All credentials MUST be defined in .env file
+// NO default credentials are provided for security reasons
+
+$dbHost = env('DB_HOST');
+$dbName = env('DB_NAME');
+$dbUser = env('DB_USER');
+$dbPass = env('DB_PASS');
+
+// Validate required database configuration
+if (empty($dbHost) || empty($dbName) || empty($dbUser) || $dbPass === null) {
+    die('CONFIGURATION ERROR: Database credentials not found. Please configure .env file in the application root directory.');
+}
+
+define('DB_HOST', $dbHost);
+define('DB_NAME', $dbName);
+define('DB_USER', $dbUser);
+define('DB_PASS', $dbPass);
 define('DB_CHARSET', 'utf8mb4');
 
-// JWT Secret for authentication tokens
-define('JWT_SECRET', 'g1h2j3k4l5d6s7a89a0');
-define('JWT_EXPIRATION', 86400); // 24 hours in seconds
+// ============================================================================
+// JWT Configuration
+// ============================================================================
+// IMPORTANT: JWT_SECRET must be defined in .env file for security
 
-// CORS settings (adjust if needed)
-define('ALLOWED_ORIGIN', '*'); // Change to your domain in production
+$jwtSecret = env('JWT_SECRET');
+if (empty($jwtSecret)) {
+    die('CONFIGURATION ERROR: JWT_SECRET not found. Please configure .env file with a secure random string.');
+}
 
-// Error reporting (disable in production)
+define('JWT_SECRET', $jwtSecret);
+define('JWT_EXPIRATION', env('JWT_EXPIRATION', 86400)); // 24 hours in seconds
+
+// ============================================================================
+// CORS Settings
+// ============================================================================
+
+define('ALLOWED_ORIGIN', env('ALLOWED_ORIGIN', '*')); // Change to your domain in production
+
+// ============================================================================
+// Error Reporting
+// ============================================================================
+
 error_reporting(E_ALL);
-ini_set('display_errors', 1);
+ini_set('display_errors', env('DEBUG_MODE', '1'));
 
 // Timezone
 date_default_timezone_set('UTC');
