@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solo Leveling Offline Bazaar - EQEMU Marketplace</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/enhanced-features.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Header -->
+    <header class="main-header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">
+                    <h1>Solo Leveling Offline Bazaar</h1>
+                </div>
+
+                <!-- Desktop Navigation -->
+                <nav class="main-nav desktop-nav">
+                    <a href="#" class="nav-link active" data-page="marketplace">Marketplace</a>
+                    <a href="#" class="nav-link" data-page="want-to-buy">WTB</a>
+                    <a href="#" class="nav-link" data-page="my-listings">My Listings</a>
+                    <a href="#" class="nav-link" data-page="my-purchases">My Purchases</a>
+                    <a href="#" class="nav-link" data-page="my-earnings">My Earnings</a>
+                    <a href="#" class="nav-link" data-page="watchlist">Watchlist</a>
+                    <a href="#" class="nav-link" data-page="my-accounts">My Accounts</a>
+                    <a href="#" class="nav-link hidden" id="admin-nav-link" data-page="admin">Admin</a>
+                </nav>
+
+                <!-- Desktop User Info -->
+                <div class="user-info desktop-user-info">
+                    <button class="btn-notifications hidden" id="notifications-btn" title="Notifications">
+                        <span class="notification-icon">🔔</span>
+                        <span class="notification-badge hidden" id="notification-count">0</span>
+                    </button>
+                    <span class="username" id="current-user">Not Logged In</span>
+                    <button class="btn-login" id="login-btn">Login</button>
+                    <button class="btn-logout hidden" id="logout-btn">Logout</button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="container">
+            <!-- Search and Filters -->
+            <div class="search-section">
+                <button class="btn btn-secondary search-toggle" id="toggle-search-section">
+                    <span class="toggle-icon">▼</span> Show Search & Filters
+                </button>
+
+                <div class="search-section-content hidden" id="search-section-content">
+                    <div class="search-bar">
+                        <input type="text" id="search-input" placeholder="Search items by name..." class="search-input">
+                        <button class="btn btn-primary" id="search-btn">Search</button>
+                    </div>
+
+                    <div class="filters">
+                    <div class="filter-group">
+                        <label for="item-type">Item Type:</label>
+                        <select id="item-type">
+                            <option value="">All Types</option>
+                            <option value="0">1H Slashing</option>
+                            <option value="1">2H Slashing</option>
+                            <option value="2">Piercing</option>
+                            <option value="3">1H Blunt</option>
+                            <option value="4">2H Blunt</option>
+                            <option value="5">Archery</option>
+                            <option value="10">Armor</option>
+                            <option value="11">Shield</option>
+                            <option value="20">Scroll</option>
+                            <option value="21">Potion</option>
+                            <option value="54">Augment</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="item-class">Class:</label>
+                        <select id="item-class">
+                            <option value="">All Classes</option>
+                            <option value="1">Warrior</option>
+                            <option value="2">Cleric</option>
+                            <option value="4">Paladin</option>
+                            <option value="8">Ranger</option>
+                            <option value="16">Shadowknight</option>
+                            <option value="32">Druid</option>
+                            <option value="64">Monk</option>
+                            <option value="128">Bard</option>
+                            <option value="256">Rogue</option>
+                            <option value="512">Shaman</option>
+                            <option value="1024">Necromancer</option>
+                            <option value="2048">Wizard</option>
+                            <option value="4096">Magician</option>
+                            <option value="8192">Enchanter</option>
+                            <option value="16384">Beastlord</option>
+                            <option value="32768">Berserker</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="price-min">Min Price (pp):</label>
+                        <input type="number" id="price-min" placeholder="0" min="0">
+                    </div>
+                    <div class="filter-group">
+                        <label for="price-max">Max Price (pp):</label>
+                        <input type="number" id="price-max" placeholder="1000000" min="0">
+                    </div>
+                    <div class="filter-group">
+                        <label for="sort-by">Sort By:</label>
+                        <select id="sort-by">
+                            <option value="newest">Newest First</option>
+                            <option value="oldest">Oldest First</option>
+                            <option value="price-low">Price: Low to High</option>
+                            <option value="price-high">Price: High to Low</option>
+                            <option value="name">Name: A-Z</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-secondary" id="clear-filters">Clear Filters</button>
+                    <button class="btn btn-secondary" id="toggle-advanced-filters">Advanced Filters</button>
+                </div>
+
+                <!-- Advanced Filters (Hidden by default) -->
+                <div class="advanced-filters hidden" id="advanced-filters">
+                    <h3 class="filter-section-title">Item Stats</h3>
+                    <div class="filters">
+                        <div class="filter-group">
+                            <label for="min-ac">Min AC:</label>
+                            <input type="number" id="min-ac" placeholder="0" min="0">
+                        </div>
+                        <div class="filter-group">
+                            <label for="min-hp">Min HP:</label>
+                            <input type="number" id="min-hp" placeholder="0" min="0">
+                        </div>
+                        <div class="filter-group">
+                            <label for="min-mana">Min Mana:</label>
+                            <input type="number" id="min-mana" placeholder="0" min="0">
+                        </div>
+                    </div>
+
+                    <h3 class="filter-section-title">Weapon Stats</h3>
+                    <div class="filters">
+                        <div class="filter-group">
+                            <label for="min-damage">Min Damage:</label>
+                            <input type="number" id="min-damage" placeholder="0" min="0">
+                        </div>
+                        <div class="filter-group">
+                            <label for="max-delay">Max Delay:</label>
+                            <input type="number" id="max-delay" placeholder="99" min="0">
+                        </div>
+                    </div>
+
+                    <h3 class="filter-section-title">Stats</h3>
+                    <div class="filters">
+                        <div class="filter-group">
+                            <label for="min-str">Min STR:</label>
+                            <input type="number" id="min-str" placeholder="0" min="0">
+                        </div>
+                        <div class="filter-group">
+                            <label for="min-dex">Min DEX:</label>
+                            <input type="number" id="min-dex" placeholder="0" min="0">
+                        </div>
+                        <div class="filter-group">
+                            <label for="min-sta">Min STA:</label>
+                            <input type="number" id="min-sta" placeholder="0" min="0">
+                        </div>
+                        <div class="filter-group">
+                            <label for="min-agi">Min AGI:</label>
+                            <input type="number" id="min-agi" placeholder="0" min="0">
+                        </div>
+                        <div class="filter-group">
+                            <label for="min-int">Min INT:</label>
+                            <input type="number" id="min-int" placeholder="0" min="0">
+                        </div>
+                        <div class="filter-group">
+                            <label for="min-wis">Min WIS:</label>
+                            <input type="number" id="min-wis" placeholder="0" min="0">
+                        </div>
+                        <div class="filter-group">
+                            <label for="min-cha">Min CHA:</label>
+                            <input type="number" id="min-cha" placeholder="0" min="0">
+                        </div>
+                    </div>
+
+                    <h3 class="filter-section-title">Resistances</h3>
+                    <div class="filters">
+                        <div class="filter-group">
+                            <label for="min-fr">Min Fire:</label>
+                            <input type="number" id="min-fr" placeholder="0">
+                        </div>
+                        <div class="filter-group">
+                            <label for="min-cr">Min Cold:</label>
+                            <input type="number" id="min-cr" placeholder="0">
+                        </div>
+                        <div class="filter-group">
+                            <label for="min-mr">Min Magic:</label>
+                            <input type="number" id="min-mr" placeholder="0">
+                        </div>
+                        <div class="filter-group">
+                            <label for="min-pr">Min Poison:</label>
+                            <input type="number" id="min-pr" placeholder="0">
+                        </div>
+                        <div class="filter-group">
+                            <label for="min-dr">Min Disease:</label>
+                            <input type="number" id="min-dr" placeholder="0">
+                        </div>
+                    </div>
+                </div>
+                </div>
+            </div>
+
+            <!-- Marketplace Page -->
+            <div class="page-content" id="marketplace-page">
+                <div class="page-header-controls">
+                    <h2 class="page-title">Active Listings</h2>
+                    <div class="view-controls">
+                        <div class="view-toggle">
+                            <button class="btn-view" data-view="grid" title="Grid View">
+                                <span class="view-icon">▦</span>
+                            </button>
+                            <button class="btn-view active" data-view="list" title="List View">
+                                <span class="view-icon">☰</span>
+                            </button>
+                        </div>
+                        <div class="items-per-page">
+                            <label for="items-per-page">Show:</label>
+                            <select id="items-per-page">
+                                <option value="20" selected>20</option>
+                                <option value="40">40</option>
+                                <option value="60">60</option>
+                                <option value="100">100</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="listings-grid" id="listings-container" data-view="list">
+                    <!-- Listings will be dynamically loaded here -->
+                    <div class="loading">Loading listings...</div>
+                </div>
+                <div class="pagination-controls hidden" id="pagination-controls">
+                    <button class="btn btn-secondary btn-sm" id="first-page" disabled>First</button>
+                    <button class="btn btn-secondary btn-sm" id="prev-page" disabled>Previous</button>
+                    <div class="page-numbers" id="page-numbers"></div>
+                    <button class="btn btn-secondary btn-sm" id="next-page">Next</button>
+                    <button class="btn btn-secondary btn-sm" id="last-page">Last</button>
+                    <div class="pagination-info" id="pagination-info"></div>
+                </div>
+            </div>
+
+            <!-- My Listings Page -->
+            <div class="page-content hidden" id="my-listings-page">
+                <h2 class="page-title">My Active Listings</h2>
+                <div class="listings-grid" id="my-listings-container">
+                    <div class="no-data">You have no active listings.</div>
+                </div>
+            </div>
+
+            <!-- My Purchases Page -->
+            <div class="page-content hidden" id="my-purchases-page">
+                <h2 class="page-title">My Purchase History</h2>
+                <div class="purchases-list" id="purchases-container">
+                    <div class="no-data">You have not made any purchases yet.</div>
+                </div>
+            </div>
+
+            <!-- My Earnings Page -->
+            <div class="page-content hidden" id="my-earnings-page">
+                <h2 class="page-title">My Seller Earnings</h2>
+
+                <div class="earnings-summary">
+                    <div class="earnings-card">
+                        <div class="earnings-amount">
+                            <span class="amount-label">Total Unclaimed Earnings:</span>
+                            <span class="amount-value" id="total-earnings-pp">0</span>
+                            <span class="amount-unit">Platinum</span>
+                        </div>
+                        <button class="btn btn-primary btn-claim" id="claim-earnings-btn" disabled>
+                            Claim All Earnings
+                        </button>
+                    </div>
+                    <div class="earnings-info">
+                        <p><strong>How it works:</strong> When your items sell, the payment is held here until you claim it. You can claim earnings per character below. The money will be added directly to your character's inventory.</p>
+                        <p><strong>Note:</strong> List items by giving them to the Marketplace Broker NPC in-game! Just hand them an item and set a price.</p>
+                    </div>
+                </div>
+
+                <h3 class="section-title">Earnings Details</h3>
+                <div class="earnings-list" id="earnings-container">
+                    <div class="no-data">You have no pending earnings.</div>
+                </div>
+            </div>
+
+            <!-- Want to Buy Page -->
+            <div class="page-content hidden" id="want-to-buy-page">
+                <h2 class="page-title">Want to Buy Orders</h2>
+
+                <div class="wtb-intro">
+                    <p>Browse active WTB orders from other players, or create your own to let sellers know what you're looking for!</p>
+                    <button class="btn btn-primary" id="create-wtb-btn">Create WTB Order</button>
+                </div>
+
+                <div class="wtb-tabs">
+                    <button class="tab-btn active" data-tab="browse-wtb">Browse All</button>
+                    <button class="tab-btn" data-tab="my-wtb">My WTB Orders</button>
+                </div>
+
+                <div class="tab-content active" id="browse-wtb">
+                    <h3 class="section-title">Active WTB Orders</h3>
+                    <div class="listings-grid" id="wtb-listings-container">
+                        <div class="loading">Loading WTB orders...</div>
+                    </div>
+                </div>
+
+                <div class="tab-content hidden" id="my-wtb">
+                    <h3 class="section-title">My WTB Orders</h3>
+                    <div class="listings-grid" id="my-wtb-container">
+                        <div class="no-data">You have no active WTB orders.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Watchlist Page -->
+            <div class="page-content hidden" id="watchlist-page">
+                <h2 class="page-title">My Watchlist</h2>
+
+                <div class="watchlist-intro">
+                    <p>Add items to your watchlist to get notified when they become available at your desired price!</p>
+                    <button class="btn btn-primary" id="add-to-watchlist-btn">Add to Watchlist</button>
+                </div>
+
+                <div class="watchlist-grid" id="watchlist-container">
+                    <div class="no-data">Your watchlist is empty. Add items to get notified!</div>
+                </div>
+            </div>
+
+            <!-- My Accounts Page -->
+            <div class="page-content hidden" id="my-accounts-page">
+                <h2 class="page-title">Linked Game Accounts</h2>
+
+                <div class="accounts-intro">
+                    <p>Link multiple game accounts to manage all your characters from one marketplace profile. Switch between accounts to claim purchases individually or reclaim all items across all accounts.</p>
+                    <button class="btn btn-primary" id="link-account-btn">Link New Account</button>
+                </div>
+
+                <div class="linked-accounts-container">
+                    <h3 class="section-title">Your Linked Accounts</h3>
+                    <div id="linked-accounts-list" class="accounts-list">
+                        <div class="loading">Loading linked accounts...</div>
+                    </div>
+                </div>
+
+                <div class="account-purchases-section hidden" id="account-purchases-section">
+                    <h3 class="section-title">Purchases by Account</h3>
+                    <div class="account-filter">
+                        <label for="account-filter-select">Filter by account:</label>
+                        <select id="account-filter-select" class="form-control">
+                            <option value="">All Accounts</option>
+                        </select>
+                        <button class="btn btn-secondary" id="refresh-account-purchases">Refresh</button>
+                    </div>
+                    <div id="account-purchases-list" class="purchases-list">
+                        <div class="no-data">No purchases found.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Admin Page -->
+            <div class="page-content hidden" id="admin-page">
+                <h2 class="page-title">Admin Panel</h2>
+
+                <div class="admin-tabs">
+                    <button class="tab-btn active" data-tab="admin-listings">All Listings</button>
+                    <button class="tab-btn" data-tab="admin-wtb">All WTB Orders</button>
+                    <button class="tab-btn" data-tab="admin-users">Registered Users</button>
+                    <button class="tab-btn" data-tab="admin-stats">Statistics</button>
+                </div>
+
+                <div class="tab-content" id="admin-listings">
+                    <h3 class="section-title">Manage All Marketplace Listings</h3>
+                    <div class="admin-search">
+                        <input type="text" id="admin-listing-search" placeholder="Search listings...">
+                        <button class="btn btn-secondary btn-sm" id="admin-refresh-listings">Refresh</button>
+                    </div>
+                    <div id="admin-listings-container">
+                        <div class="loading">Loading all listings...</div>
+                    </div>
+                </div>
+
+                <div class="tab-content hidden" id="admin-wtb">
+                    <h3 class="section-title">Manage All WTB Orders</h3>
+                    <div class="admin-search">
+                        <input type="text" id="admin-wtb-search" placeholder="Search WTB orders...">
+                        <button class="btn btn-secondary btn-sm" id="admin-refresh-wtb">Refresh</button>
+                    </div>
+                    <div id="admin-wtb-container">
+                        <div class="loading">Loading all WTB orders...</div>
+                    </div>
+                </div>
+
+                <div class="tab-content hidden" id="admin-users">
+                    <h3 class="section-title">Registered Marketplace Users</h3>
+                    <div class="admin-search">
+                        <input type="text" id="admin-user-search" placeholder="Search users by account name...">
+                        <button class="btn btn-secondary btn-sm" id="admin-refresh-users">Refresh</button>
+                    </div>
+                    <div id="admin-users-container">
+                        <div class="loading">Loading registered users...</div>
+                    </div>
+                </div>
+
+                <div class="tab-content hidden" id="admin-stats">
+                    <h3 class="section-title">Marketplace Statistics</h3>
+                    <div class="admin-stats-grid" id="admin-stats-container">
+                        <div class="stat-card">
+                            <h4>Total Listings</h4>
+                            <p class="stat-value" id="stat-total-listings">-</p>
+                        </div>
+                        <div class="stat-card">
+                            <h4>Total WTB Orders</h4>
+                            <p class="stat-value" id="stat-total-wtb">-</p>
+                        </div>
+                        <div class="stat-card">
+                            <h4>Total Transactions</h4>
+                            <p class="stat-value" id="stat-total-transactions">-</p>
+                        </div>
+                        <div class="stat-card">
+                            <h4>Active Users</h4>
+                            <p class="stat-value" id="stat-active-users">-</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="main-footer">
+        <div class="container">
+            <p>&copy; 2025 Solo Leveling Offline Bazaar.</p>
+            <p class="disclaimer">EverQuest is a registered trademark of Daybreak Game Company LLC.</p>
+        </div>
+    </footer>
+
+    <!-- Login Modal -->
+    <div class="modal hidden" id="login-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Login to Marketplace</h2>
+                <button class="modal-close" id="close-login">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="login-form">
+                    <div class="form-group">
+                        <label for="login-username">Account Name:</label>
+                        <input type="text" id="login-username" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="login-password">Password:</label>
+                        <input type="password" id="login-password" required>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">Login</button>
+                    </div>
+                    <div class="form-footer">
+                        <p>Don't have a marketplace account? <a href="#" id="show-register-link" class="auth-link">Register here</a></p>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Register Modal -->
+    <div class="modal hidden" id="register-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Register for Marketplace</h2>
+                <button class="modal-close" id="close-register">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-notice">
+                    <p><strong>Account Verification:</strong> To register, you need an existing EQEMU account. Enter your account name and one of your character IDs to verify ownership.</p>
+                </div>
+                <form id="register-form">
+                    <div class="form-group">
+                        <label for="register-account-name">EQEMU Account Name:</label>
+                        <input type="text" id="register-account-name" required>
+                        <small>Your existing EQEMU game account name</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="register-character-id">Character ID (for verification):</label>
+                        <input type="number" id="register-character-id" required min="1">
+                        <small>Enter any character ID from your account (use !characterid in-game)</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="register-password">Marketplace Password:</label>
+                        <input type="password" id="register-password" required minlength="6">
+                        <small>Minimum 6 characters (this is separate from your game password)</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="register-confirm-password">Confirm Password:</label>
+                        <input type="password" id="register-confirm-password" required minlength="6">
+                    </div>
+                    <div class="form-group">
+                        <label for="register-email">Email (optional):</label>
+                        <input type="email" id="register-email">
+                        <small>For account recovery (optional)</small>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">Register</button>
+                    </div>
+                    <div class="form-footer">
+                        <p>Already registered? <a href="#" id="show-login-link" class="auth-link">Login here</a></p>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Item Details Modal -->
+    <div class="modal hidden" id="item-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="item-modal-title">Item Details</h2>
+                <button class="modal-close" id="close-item-modal">&times;</button>
+            </div>
+            <div class="modal-body" id="item-modal-body">
+                <!-- Item details will be loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Create WTB Modal -->
+    <div class="modal hidden" id="create-wtb-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Create Want to Buy Order</h2>
+                <button class="modal-close" id="close-create-wtb">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="create-wtb-form">
+                    <div class="form-group">
+                        <label for="wtb-item-search">Item Name:</label>
+                        <input type="text" id="wtb-item-search" placeholder="Search for item..." required>
+                        <div id="wtb-item-suggestions" class="item-suggestions"></div>
+                        <input type="hidden" id="wtb-item-id" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="wtb-character">Character:</label>
+                        <select id="wtb-character" required>
+                            <option value="">Select a character...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="wtb-quantity">Quantity Wanted:</label>
+                        <input type="number" id="wtb-quantity" min="1" max="1000" value="1" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="wtb-price">Price per Unit (pp):</label>
+                        <input type="number" id="wtb-price" min="0" step="0.001" placeholder="100.00" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="wtb-expires">Expires In:</label>
+                        <select id="wtb-expires" required>
+                            <option value="7">7 Days</option>
+                            <option value="14">14 Days</option>
+                            <option value="30" selected>30 Days</option>
+                            <option value="60">60 Days</option>
+                            <option value="90">90 Days</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="wtb-notes">Notes (optional):</label>
+                        <textarea id="wtb-notes" maxlength="500" placeholder="Any specific requirements..."></textarea>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">Create WTB Order</button>
+                        <button type="button" class="btn btn-secondary" id="cancel-wtb">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add to Watchlist Modal -->
+    <div class="modal hidden" id="add-watchlist-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Add to Watchlist</h2>
+                <button class="modal-close" id="close-add-watchlist">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="add-watchlist-form">
+                    <div class="form-group">
+                        <label for="watchlist-item-search">Item Name:</label>
+                        <input type="text" id="watchlist-item-search" placeholder="Search for item..." required>
+                        <div id="watchlist-item-suggestions" class="item-suggestions"></div>
+                        <input type="hidden" id="watchlist-item-id">
+                    </div>
+                    <div class="form-group">
+                        <label for="watchlist-max-price">Max Price (pp):</label>
+                        <input type="number" id="watchlist-max-price" min="0" step="0.001" placeholder="Optional">
+                    </div>
+                    <div class="form-group">
+                        <label for="watchlist-notes">Notes (optional):</label>
+                        <textarea id="watchlist-notes" maxlength="500" placeholder="Any specific requirements..."></textarea>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">Add to Watchlist</button>
+                        <button type="button" class="btn btn-secondary" id="cancel-watchlist">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notifications Modal -->
+    <div class="modal hidden" id="notifications-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Notifications</h2>
+                <button class="modal-close" id="close-notifications">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="notifications-actions">
+                    <button class="btn btn-secondary btn-sm" id="mark-all-read">Mark All as Read</button>
+                    <button class="btn btn-danger btn-sm" id="clear-all-notifications">Clear All Notifications</button>
+                </div>
+                <div class="notifications-list" id="notifications-list">
+                    <div class="loading">Loading notifications...</div>
+                </div>
+                <div class="notifications-pagination" id="notifications-pagination" style="display: none;">
+                    <div class="pagination-info" id="pagination-info"></div>
+                    <button class="btn btn-secondary btn-sm" id="load-more-notifications">Load More</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick View Modal -->
+    <div class="modal hidden" id="quick-view-modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2>Quick View</h2>
+                <button class="modal-close" id="close-quick-view">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="quick-view-content" class="quick-view-content">
+                    <div class="loading">Loading item details...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Link Account Modal -->
+    <div class="modal hidden" id="link-account-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Link New Game Account</h2>
+                <button class="modal-close" id="close-link-account">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="link-account-form">
+                    <div class="form-group">
+                        <label for="link-account-name">Account Name:</label>
+                        <input type="text" id="link-account-name" required placeholder="Enter account name">
+                        <p class="help-text">The exact name of the game account you want to link</p>
+                    </div>
+                    <div class="form-group">
+                        <label for="link-character-id">Character ID (for validation):</label>
+                        <input type="number" id="link-character-id" required placeholder="Enter character ID">
+                        <p class="help-text">To prove ownership, provide a character ID that belongs to this account. You can find your character ID in-game or from your server's database.</p>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">Link Account</button>
+                        <button type="button" class="btn btn-secondary" id="cancel-link-account">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mobile Bottom Navigation -->
+    <nav class="mobile-bottom-nav" id="mobile-bottom-nav">
+        <a href="#" class="bottom-nav-item active" data-page="marketplace">
+            <span class="nav-icon">🏠</span>
+            <span class="nav-label">Market</span>
+        </a>
+        <a href="#" class="bottom-nav-item" data-page="want-to-buy">
+            <span class="nav-icon">📋</span>
+            <span class="nav-label">WTB</span>
+        </a>
+        <a href="#" class="bottom-nav-item" data-page="my-listings">
+            <span class="nav-icon">📦</span>
+            <span class="nav-label">Listings</span>
+        </a>
+        <a href="#" class="bottom-nav-item" data-page="my-earnings">
+            <span class="nav-icon">💰</span>
+            <span class="nav-label">Earnings</span>
+        </a>
+        <a href="#" class="bottom-nav-item" data-page="more">
+            <span class="nav-icon">⋯</span>
+            <span class="nav-label">More</span>
+        </a>
+    </nav>
+
+    <!-- Mobile "More" Menu Overlay -->
+    <div class="mobile-more-overlay hidden" id="mobile-more-overlay">
+        <div class="mobile-more-menu">
+            <div class="more-menu-header">
+                <h3>Menu</h3>
+                <button class="more-close-btn" id="more-close-btn">&times;</button>
+            </div>
+            <div class="more-menu-content">
+                <a href="#" class="more-menu-item" data-page="my-purchases">
+                    <span class="more-icon">🛒</span>
+                    <span class="more-label">My Purchases</span>
+                </a>
+                <a href="#" class="more-menu-item" data-page="watchlist">
+                    <span class="more-icon">⭐</span>
+                    <span class="more-label">Watchlist</span>
+                </a>
+                <a href="#" class="more-menu-item" data-page="my-accounts">
+                    <span class="more-icon">👤</span>
+                    <span class="more-label">My Accounts</span>
+                </a>
+                <a href="#" class="more-menu-item hidden" id="mobile-admin-more-link" data-page="admin">
+                    <span class="more-icon">⚙️</span>
+                    <span class="more-label">Admin</span>
+                </a>
+                <div class="more-menu-divider"></div>
+                <div class="more-menu-user">
+                    <span class="more-username" id="more-current-user">Not Logged In</span>
+                    <button class="btn btn-notifications-more hidden" id="notifications-btn-more">
+                        <span class="notification-icon">🔔</span>
+                        <span class="notification-badge hidden" id="notification-count-more">0</span>
+                        Notifications
+                    </button>
+                    <button class="btn btn-login-more" id="login-btn-more">Login</button>
+                    <button class="btn btn-logout-more hidden" id="logout-btn-more">Logout</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/config.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/app.js"></script>
+    <script src="js/app-enhanced.js"></script>
+    <script src="js/app-admin.js"></script>
+    <script src="js/app-accounts.js"></script>
+</body>
+</html>

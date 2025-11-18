@@ -1,0 +1,70 @@
+# EQEMU Marketplace - API .htaccess
+# Place this file as: .htaccess in the api folder
+# Location: C:\xampp\htdocs\eqemu-marketplace\api\.htaccess
+
+# ============================================================================
+# CRITICAL: Prevent direct access to config.php
+# ============================================================================
+<Files "config.php">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order Deny,Allow
+        Deny from all
+    </IfModule>
+</Files>
+
+<Files "config-secure.php">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order Deny,Allow
+        Deny from all
+    </IfModule>
+</Files>
+
+# ============================================================================
+# Block access to sensitive file types
+# ============================================================================
+<FilesMatch "\.(sql|log|ini|bak|conf|dist)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order Deny,Allow
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# ============================================================================
+# Prevent directory listing
+# ============================================================================
+Options -Indexes
+
+# ============================================================================
+# Enable CORS for API endpoints
+# ============================================================================
+<IfModule mod_headers.c>
+    Header set Access-Control-Allow-Origin "*"
+    Header set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+    Header set Access-Control-Allow-Headers "Content-Type, Authorization"
+    
+    # Handle preflight requests
+    Header set Access-Control-Max-Age "3600"
+</IfModule>
+
+# ============================================================================
+# Force UTF-8 encoding
+# ============================================================================
+AddDefaultCharset UTF-8
+
+# ============================================================================
+# PHP security settings (if allowed in .htaccess)
+# ============================================================================
+<IfModule mod_php7.c>
+    php_flag display_errors Off
+    php_flag log_errors On
+    php_value error_log /tmp/php_errors.log
+</IfModule>
