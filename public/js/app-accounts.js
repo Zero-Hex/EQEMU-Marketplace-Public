@@ -70,12 +70,22 @@
                 </div>
                 <div class="account-actions">
                     ${!account.is_active ?
-                        `<button class="btn btn-sm btn-primary" onclick="app.switchAccount(${account.account_id}, '${this.escapeHtml(account.account_name)}')">Switch to This Account</button>` :
+                        `<button class="btn btn-sm btn-primary btn-switch-account" data-account-id="${account.account_id}" data-account-name="${this.escapeHtml(account.account_name)}">Switch to This Account</button>` :
                         '<span class="text-muted">Currently Active</span>'}
                 </div>
             `;
 
             container.appendChild(accountCard);
+
+            // Attach event listener to switch button if present
+            const switchBtn = accountCard.querySelector('.btn-switch-account');
+            if (switchBtn) {
+                switchBtn.addEventListener('click', (e) => {
+                    const accountId = parseInt(e.target.dataset.accountId);
+                    const accountName = e.target.dataset.accountName;
+                    this.switchAccount(accountId, accountName);
+                });
+            }
         });
     };
 

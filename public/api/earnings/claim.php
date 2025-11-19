@@ -17,9 +17,6 @@ try {
     // Get account_id from authenticated user
     $account_id = $user['account_id'];
 
-    // Detect where currency is stored (character_data vs character_currency) - CACHED
-    $hasCurrencyTable = $db->tableExists('character_currency');
-
     // Get marketplace user to find all linked accounts
     $stmt = $conn->prepare("SELECT id, account_id FROM marketplace_users WHERE account_id = :account_id");
     $stmt->execute([':account_id' => $account_id]);
@@ -125,7 +122,6 @@ try {
 
         $total_claimed_copper = 0;
         $character_names = [];
-        $currency_debug = []; // Debug currency calculations
 
         // Process each character's earnings
         foreach ($earnings_by_char as $char_id => $data) {
@@ -133,209 +129,93 @@ try {
             $earning_ids = $data['earning_ids'];
 
             // Get character info
-            $stmt = $conn->prepare("SELECT name, ingame FROM character_data WHERE id = ?");
+            $stmt = $conn->prepare("SELECT name FROM character_data WHERE id = ?");
             $stmt->execute([$char_id]);
             $char_data = $stmt->fetch();
             $char_name = $char_data['name'];
             $character_names[] = $char_name;
-            $isOnline = isset($char_data['ingame']) && intval($char_data['ingame']) > 0;
 
-            // Convert earnings to Bitcoin if alternate currency is enabled AND over 1M platinum
-            // convertEarningsToBitcoin has internal USE_ALT_CURRENCY check
-            $earningsBreakdown = convertEarningsToBitcoin($total_copper);
-            $bitcoinEarned = $earningsBreakdown['bitcoin'];
+            // Convert earnings to alt currency if alternate currency is enabled AND over 1M platinum
+            // convertEarningsToAltCurrency has internal USE_ALT_CURRENCY check
+            $earningsBreakdown = convertEarningsToAltCurrency($total_copper);
+            $altCurrencyEarned = $earningsBreakdown['alt_currency'];
             $copperToAdd = $earningsBreakdown['copper_remainder'];
             $platinum_earned = floor($total_copper / 1000);
 
             // Check if slot_id exists - CACHED
             $hasSlotId = $db->columnExists('character_parcels', 'slot_id');
 
-            if ($isOnline) {
-                // Character is online - must send parcels (database currency updates won't sync)
-                if ($hasSlotId) {
-                    // Find next available slot
+            // Always send earnings via parcel (safe for both online and offline characters)
+            if ($hasSlotId) {
+                // Find next available slot
+                $stmt = $conn->prepare("
+                    SELECT COALESCE(MAX(slot_id), -1) + 1 as next_slot
+                    FROM character_parcels
+                    WHERE char_id = ?
+                ");
+                $stmt->execute([$char_id]);
+                $slotResult = $stmt->fetch();
+                $nextSlot = $slotResult ? intval($slotResult['next_slot']) : 0;
+
+                // Send money parcel if any copper to add
+                if ($copperToAdd > 0) {
+                    $parcel_copper = min($copperToAdd, 2147483647); // Max signed int
+                    if (USE_ALT_CURRENCY && $altCurrencyEarned > 0) {
+                        $platinum_remainder = $earningsBreakdown['platinum_remainder'];
+                        $moneyNote = "Marketplace Earnings: {$platinum_remainder}pp (from total {$platinum_earned}pp) from " . count($earning_ids) . " sale(s). Check parcels for " . ALT_CURRENCY_NAME . "!";
+                    } else {
+                        $moneyNote = "Marketplace Earnings: {$platinum_earned}pp from " . count($earning_ids) . " sale(s)";
+                    }
+
                     $stmt = $conn->prepare("
-                        SELECT COALESCE(MAX(slot_id), -1) + 1 as next_slot
-                        FROM character_parcels
-                        WHERE char_id = ?
+                        INSERT INTO character_parcels (char_id, slot_id, from_name, item_id, quantity, note, sent_date)
+                        VALUES (?, ?, 'Marketplace', 99990, ?, ?, NOW())
                     ");
-                    $stmt->execute([$char_id]);
-                    $slotResult = $stmt->fetch();
-                    $nextSlot = $slotResult ? intval($slotResult['next_slot']) : 0;
+                    $stmt->execute([$char_id, $nextSlot, $parcel_copper, $moneyNote]);
+                    $nextSlot++;
+                }
 
-                    // Send money parcel if any copper to add
-                    if ($copperToAdd > 0) {
-                        $parcel_copper = min($copperToAdd, 2147483647); // Max signed int
-                        if (USE_ALT_CURRENCY && $bitcoinEarned > 0) {
-                            $platinum_remainder = $earningsBreakdown['platinum_remainder'];
-                            $moneyNote = "Marketplace Earnings: {$platinum_remainder}pp (from total {$platinum_earned}pp) from " . count($earning_ids) . " sale(s). Check parcels for " . ALT_CURRENCY_NAME . "!";
-                        } else {
-                            $moneyNote = "Marketplace Earnings: {$platinum_earned}pp from " . count($earning_ids) . " sale(s)";
-                        }
+                // Send alt currency parcel if any (only if alternate currency enabled)
+                if (USE_ALT_CURRENCY && $altCurrencyEarned > 0) {
+                    $platinum_remainder = $earningsBreakdown['platinum_remainder'];
+                    $altCurrencyNote = "Marketplace Earnings: {$altCurrencyEarned} " . ALT_CURRENCY_NAME . " (from total {$platinum_earned}pp)";
 
-                        $stmt = $conn->prepare("
-                            INSERT INTO character_parcels (char_id, slot_id, from_name, item_id, quantity, note, sent_date)
-                            VALUES (?, ?, 'Marketplace', 99990, ?, ?, NOW())
-                        ");
-                        $stmt->execute([$char_id, $nextSlot, $parcel_copper, $moneyNote]);
-                        $nextSlot++;
-                    }
-
-                    // Send Bitcoin parcel if any (only if alternate currency enabled)
-                    if (USE_ALT_CURRENCY && $bitcoinEarned > 0) {
-                        $platinum_remainder = $earningsBreakdown['platinum_remainder'];
-                        $bitcoinNote = "Marketplace Earnings: {$bitcoinEarned} " . ALT_CURRENCY_NAME . " (from total {$platinum_earned}pp)";
-
-                        $stmt = $conn->prepare("
-                            INSERT INTO character_parcels (char_id, slot_id, from_name, item_id, quantity, note, sent_date)
-                            VALUES (?, ?, 'Marketplace', ?, ?, ?, NOW())
-                        ");
-                        $stmt->execute([$char_id, $nextSlot, BITCOIN_ID, $bitcoinEarned, $bitcoinNote]);
-                        error_log("Sent {$bitcoinEarned} Bitcoin via parcel to char {$char_id}");
-                    }
-                } else {
-                    // No slot_id support
-                    if ($copperToAdd > 0) {
-                        $parcel_copper = min($copperToAdd, 2147483647);
-                        if (USE_ALT_CURRENCY && $bitcoinEarned > 0) {
-                            $platinum_remainder = $earningsBreakdown['platinum_remainder'];
-                            $moneyNote = "Marketplace Earnings: {$platinum_remainder}pp (from total {$platinum_earned}pp) from " . count($earning_ids) . " sale(s). Check parcels for " . ALT_CURRENCY_NAME . "!";
-                        } else {
-                            $moneyNote = "Marketplace Earnings: {$platinum_earned}pp from " . count($earning_ids) . " sale(s)";
-                        }
-
-                        $stmt = $conn->prepare("
-                            INSERT INTO character_parcels (char_id, from_name, item_id, quantity, note, sent_date)
-                            VALUES (?, 'Marketplace', 99990, ?, ?, NOW())
-                        ");
-                        $stmt->execute([$char_id, $parcel_copper, $moneyNote]);
-                    }
-
-                    // Send Bitcoin parcel if any (only if alternate currency enabled)
-                    if (USE_ALT_CURRENCY && $bitcoinEarned > 0) {
-                        $platinum_remainder = $earningsBreakdown['platinum_remainder'];
-                        $bitcoinNote = "Marketplace Earnings: {$bitcoinEarned} " . ALT_CURRENCY_NAME . " (from total {$platinum_earned}pp)";
-
-                        $stmt = $conn->prepare("
-                            INSERT INTO character_parcels (char_id, from_name, item_id, quantity, note, sent_date)
-                            VALUES (?, 'Marketplace', ?, ?, ?, NOW())
-                        ");
-                        $stmt->execute([$char_id, BITCOIN_ID, $bitcoinEarned, $bitcoinNote]);
-                        error_log("Sent {$bitcoinEarned} " . ALT_CURRENCY_NAME . " via parcel to char {$char_id}");
-                    }
+                    $stmt = $conn->prepare("
+                        INSERT INTO character_parcels (char_id, slot_id, from_name, item_id, quantity, note, sent_date)
+                        VALUES (?, ?, 'Marketplace', ?, ?, ?, NOW())
+                    ");
+                    $stmt->execute([$char_id, $nextSlot, ALT_CURRENCY_ITEM_ID, $altCurrencyEarned, $altCurrencyNote]);
+                    error_log("Sent {$altCurrencyEarned} " . ALT_CURRENCY_NAME . " via parcel to char {$char_id}");
                 }
             } else {
-                // Character is offline - update currency directly in database
-                // Get current currency
-                if ($hasCurrencyTable) {
+                // No slot_id support
+                if ($copperToAdd > 0) {
+                    $parcel_copper = min($copperToAdd, 2147483647);
+                    if (USE_ALT_CURRENCY && $altCurrencyEarned > 0) {
+                        $platinum_remainder = $earningsBreakdown['platinum_remainder'];
+                        $moneyNote = "Marketplace Earnings: {$platinum_remainder}pp (from total {$platinum_earned}pp) from " . count($earning_ids) . " sale(s). Check parcels for " . ALT_CURRENCY_NAME . "!";
+                    } else {
+                        $moneyNote = "Marketplace Earnings: {$platinum_earned}pp from " . count($earning_ids) . " sale(s)";
+                    }
+
                     $stmt = $conn->prepare("
-                        SELECT platinum, gold, silver, copper
-                        FROM character_currency
-                        WHERE id = ?
+                        INSERT INTO character_parcels (char_id, from_name, item_id, quantity, note, sent_date)
+                        VALUES (?, 'Marketplace', 99990, ?, ?, NOW())
                     ");
-                    $currencyLocation = 'character_currency';
-                } else {
-                    $stmt = $conn->prepare("
-                        SELECT platinum, gold, silver, copper
-                        FROM character_data
-                        WHERE id = ?
-                    ");
-                    $currencyLocation = 'character_data';
+                    $stmt->execute([$char_id, $parcel_copper, $moneyNote]);
                 }
 
-                $stmt->execute([$char_id]);
-                $currency = $stmt->fetch();
+                // Send alt currency parcel if any (only if alternate currency enabled)
+                if (USE_ALT_CURRENCY && $altCurrencyEarned > 0) {
+                    $platinum_remainder = $earningsBreakdown['platinum_remainder'];
+                    $altCurrencyNote = "Marketplace Earnings: {$altCurrencyEarned} " . ALT_CURRENCY_NAME . " (from total {$platinum_earned}pp)";
 
-                // Capture before values for debug
-                $beforeValues = [
-                    'platinum' => $currency['platinum'],
-                    'gold' => $currency['gold'],
-                    'silver' => $currency['silver'],
-                    'copper' => $currency['copper']
-                ];
-
-                error_log("CLAIM DEBUG - Before update: char_id={$char_id}, current_plat={$currency['platinum']}, current_gold={$currency['gold']}, current_silver={$currency['silver']}, current_copper={$currency['copper']}, copperToAdd={$copperToAdd}");
-
-                if ($currency) {
-                    // Calculate new currency amounts with remainder platinum
-                    $currentTotalCopper = ($currency['platinum'] * 1000) +
-                                         ($currency['gold'] * 100) +
-                                         ($currency['silver'] * 10) +
-                                         $currency['copper'] +
-                                         $copperToAdd;
-
-                    $newPlatinum = floor($currentTotalCopper / 1000);
-                    $currentTotalCopper = $currentTotalCopper % 1000;
-                    $newGold = floor($currentTotalCopper / 100);
-                    $currentTotalCopper = $currentTotalCopper % 100;
-                    $newSilver = floor($currentTotalCopper / 10);
-                    $newCopper = $currentTotalCopper % 10;
-
-                    error_log("CLAIM DEBUG - Calculated values: newPlatinum={$newPlatinum}, newGold={$newGold}, newSilver={$newSilver}, newCopper={$newCopper}");
-
-                    // Update currency
                     $stmt = $conn->prepare("
-                        UPDATE {$currencyLocation}
-                        SET platinum = ?, gold = ?, silver = ?, copper = ?
-                        WHERE id = ?
+                        INSERT INTO character_parcels (char_id, from_name, item_id, quantity, note, sent_date)
+                        VALUES (?, 'Marketplace', ?, ?, ?, NOW())
                     ");
-                    $stmt->execute([$newPlatinum, $newGold, $newSilver, $newCopper, $char_id]);
-                    $rowsAffected = $stmt->rowCount();
-
-                    error_log("CLAIM DEBUG - UPDATE executed: rowsAffected={$rowsAffected}, table={$currencyLocation}");
-
-                    // Store debug info for this character
-                    $currency_debug[] = [
-                        'char_id' => $char_id,
-                        'char_name' => $char_name,
-                        'before' => $beforeValues,
-                        'copper_added' => $copperToAdd,
-                        'after' => [
-                            'platinum' => $newPlatinum,
-                            'gold' => $newGold,
-                            'silver' => $newSilver,
-                            'copper' => $newCopper
-                        ],
-                        'rows_affected' => $rowsAffected,
-                        'table' => $currencyLocation
-                    ];
-
-                    // Send Bitcoin parcel if any (only if alternate currency enabled)
-                    // Money was already added to character currency above
-                    if (USE_ALT_CURRENCY && $bitcoinEarned > 0) {
-                        if ($hasSlotId) {
-                            // Find next available slot
-                            $stmt = $conn->prepare("
-                                SELECT COALESCE(MAX(slot_id), -1) + 1 as next_slot
-                                FROM character_parcels
-                                WHERE char_id = ?
-                            ");
-                            $stmt->execute([$char_id]);
-                            $slotResult = $stmt->fetch();
-                            $nextSlot = $slotResult ? intval($slotResult['next_slot']) : 0;
-
-                            $platinum_remainder = $earningsBreakdown['platinum_remainder'];
-                            $bitcoinNote = "Marketplace Earnings: {$bitcoinEarned} " . ALT_CURRENCY_NAME . " + {$platinum_remainder}pp (total: {$platinum_earned}pp) from " . count($earning_ids) . " sale(s). Platinum added to character.";
-
-                            $stmt = $conn->prepare("
-                                INSERT INTO character_parcels (char_id, slot_id, from_name, item_id, quantity, note, sent_date)
-                                VALUES (?, ?, 'Marketplace', ?, ?, ?, NOW())
-                            ");
-                            $stmt->execute([$char_id, $nextSlot, BITCOIN_ID, $bitcoinEarned, $bitcoinNote]);
-                            error_log("Sent {$bitcoinEarned} " . ALT_CURRENCY_NAME . " via parcel to char {$char_id}");
-                        } else {
-                            // No slot_id support
-                            $platinum_remainder = $earningsBreakdown['platinum_remainder'];
-                            $bitcoinNote = "Marketplace Earnings: {$bitcoinEarned} " . ALT_CURRENCY_NAME . " + {$platinum_remainder}pp (total: {$platinum_earned}pp) from " . count($earning_ids) . " sale(s). Platinum added to character.";
-
-                            $stmt = $conn->prepare("
-                                INSERT INTO character_parcels (char_id, from_name, item_id, quantity, note, sent_date)
-                                VALUES (?, 'Marketplace', ?, ?, ?, NOW())
-                            ");
-                            $stmt->execute([$char_id, BITCOIN_ID, $bitcoinEarned, $bitcoinNote]);
-                            error_log("Sent {$bitcoinEarned} " . ALT_CURRENCY_NAME . " via parcel to char {$char_id}");
-                        }
-                    }
+                    $stmt->execute([$char_id, ALT_CURRENCY_ITEM_ID, $altCurrencyEarned, $altCurrencyNote]);
+                    error_log("Sent {$altCurrencyEarned} " . ALT_CURRENCY_NAME . " via parcel to char {$char_id}");
                 }
             }
 
@@ -358,13 +238,13 @@ try {
 
         sendJSON([
             'success' => true,
-            'message' => "Successfully claimed {$total_claimed_platinum}pp in earnings! Money has been added to your characters: " . implode(', ', $character_names) . ". Check your parcels for a notification.",
+            'message' => "Successfully claimed {$total_claimed_platinum}pp in earnings! Money sent via parcel to: " . implode(', ', $character_names) . ". Check the parcel merchant!",
             'claimed_amount_copper' => $total_claimed_copper,
             'claimed_amount_platinum' => $total_claimed_platinum,
             'characters_paid' => $character_names,
             'earnings_claimed' => count($earnings),
-            'debug_earnings' => $all_earnings_debug, // Show which earnings were claimed
-            'debug_currency_updates' => $currency_debug // Show currency calculations
+            'payment_method' => 'parcel',
+            'debug_earnings' => $all_earnings_debug // Show which earnings were claimed
         ]);
 
     } catch (Exception $e) {

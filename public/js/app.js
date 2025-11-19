@@ -391,7 +391,7 @@ class MarketplaceApp {
         card.innerHTML = `
             <div class="listing-header">
                 <div class="item-icon">
-                    ${listing.icon ? `<img src="${CONFIG.ICON_BASE_URL}${listing.icon}.png" alt="${listing.item_name}">` : CONFIG.DEFAULT_ICON}
+                    ${listing.icon && CONFIG.ICON_BASE_URL ? `<img src="${CONFIG.ICON_BASE_URL}${listing.icon}.png" alt="${listing.item_name}">` : CONFIG.DEFAULT_ICON}
                 </div>
                 <div class="listing-info">
                     <div class="item-name">${this.escapeHtml(listing.item_name)}</div>
@@ -533,12 +533,12 @@ async showItemDetails(listing, isPurchasable = true) {
         
         body.innerHTML = `
             <div class="item-details-container">
-                ${listing.icon ? `
+                ${listing.icon && CONFIG.ICON_BASE_URL ? `
                 <div class="item-icon-large">
                     <img src="${CONFIG.ICON_BASE_URL}${listing.icon}.png" alt="${listing.item_name}">
                 </div>
                 ` : ''}
-                
+
                 <div class="item-stats">
                     <div class="stat-section">
                         <h4>${isPurchasable ? 'Listing Information' : 'Item Information'}</h4>
@@ -604,13 +604,23 @@ async showItemDetails(listing, isPurchasable = true) {
                         🔍 View in Item Database
                     </a>
                     ${this.currentUser && isPurchasable ? `
-                    <button class="btn btn-primary" onclick="app.showPurchaseConfirm(${JSON.stringify(listing).replace(/"/g, '&quot;')})">
+                    <button class="btn btn-primary" id="item-modal-purchase-btn">
                         💰 Purchase Item
                     </button>
                     ` : ''}
                 </div>
             </div>
         `;
+
+        // Attach event listener to purchase button if it exists
+        if (this.currentUser && isPurchasable) {
+            const purchaseBtn = body.querySelector('#item-modal-purchase-btn');
+            if (purchaseBtn) {
+                purchaseBtn.addEventListener('click', () => {
+                    this.showPurchaseConfirm(listing);
+                });
+            }
+        }
     } catch (error) {
         body.innerHTML = '<div class="no-data">Failed to load item details.</div>';
     }
@@ -642,13 +652,29 @@ async showItemDetails(listing, isPurchasable = true) {
                 </div>
 
                 <div class="confirm-actions">
-                    <button class="btn btn-primary" onclick="app.completePurchase(${listing.id})">Confirm Purchase</button>
-                    <button class="btn btn-secondary" onclick="app.hideItemModal()">Cancel</button>
+                    <button class="btn btn-primary" id="confirm-purchase-btn" data-listing-id="${listing.id}">Confirm Purchase</button>
+                    <button class="btn btn-secondary" id="cancel-purchase-btn">Cancel</button>
                 </div>
             </div>
         `;
 
         modal.classList.remove('hidden');
+
+        // Attach event listeners to buttons
+        const confirmBtn = document.getElementById('confirm-purchase-btn');
+        const cancelBtn = document.getElementById('cancel-purchase-btn');
+
+        if (confirmBtn) {
+            confirmBtn.addEventListener('click', () => {
+                this.completePurchase(listing.id);
+            });
+        }
+
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', () => {
+                this.hideItemModal();
+            });
+        }
     }
 
     async completePurchase(listingId) {
@@ -762,7 +788,7 @@ async showItemDetails(listing, isPurchasable = true) {
         item.innerHTML = `
             <div class="purchase-info">
                 <div class="item-icon">
-                    ${purchase.icon ? `<img src="${CONFIG.ICON_BASE_URL}${purchase.icon}.png" alt="${purchase.item_name}">` : CONFIG.DEFAULT_ICON}
+                    ${purchase.icon && CONFIG.ICON_BASE_URL ? `<img src="${CONFIG.ICON_BASE_URL}${purchase.icon}.png" alt="${purchase.item_name}">` : CONFIG.DEFAULT_ICON}
                 </div>
                 <div class="purchase-details">
                     <h3>${this.escapeHtml(purchase.item_name)}</h3>

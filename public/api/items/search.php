@@ -31,6 +31,7 @@ try {
             name,
             icon,
             itemtype,
+            stacksize,
             ac,
             hp,
             mana,
@@ -58,6 +59,7 @@ try {
     foreach ($items as &$item) {
         $item['id'] = intval($item['id']);
         $item['itemtype'] = intval($item['itemtype']);
+        $item['stacksize'] = intval($item['stacksize']);
         $item['ac'] = intval($item['ac']);
         $item['hp'] = intval($item['hp']);
         $item['mana'] = intval($item['mana']);

@@ -23,15 +23,9 @@ if (typeof MarketplaceApp !== 'undefined') {
     };
 
     MarketplaceApp.prototype.loadAdminPage = async function() {
-        console.log('Loading admin page...');
-        console.log('Current user:', this.currentUser);
-        console.log('User status:', this.currentUser?.status);
-        console.log('Is admin:', this.isAdmin());
-
         // Check status with backend
         try {
             const statusCheck = await api.request('/admin/check-status.php');
-            console.log('Backend status check:', statusCheck);
 
             if (statusCheck.success && statusCheck.account) {
                 // Update the page title to show current status
@@ -95,17 +89,10 @@ if (typeof MarketplaceApp !== 'undefined') {
         container.innerHTML = '<div class="loading">Loading all listings...</div>';
 
         try {
-            console.log('Loading admin listings...');
-            console.log('Auth token:', api.token ? 'Present' : 'Missing');
-
             const searchTerm = document.getElementById('admin-listing-search')?.value || '';
             const endpoint = '/admin/all-listings.php' + (searchTerm ? '?search=' + encodeURIComponent(searchTerm) : '');
 
-            console.log('Requesting:', endpoint);
-
             const response = await api.request(endpoint);
-
-            console.log('Admin listings response:', response);
 
             if (response.success && response.listings) {
                 this.displayAdminListings(response.listings, container);
@@ -197,7 +184,6 @@ if (typeof MarketplaceApp !== 'undefined') {
                 <td class="admin-actions">
                     ${isActive ? `<button class="btn btn-warning btn-sm admin-cancel-btn" data-listing-id="${listing.id}" data-item-name="${itemNameEscaped}">Cancel</button>` : ''}
                     ${canRestore ? `<button class="btn btn-primary btn-sm admin-restore-btn" data-listing-id="${listing.id}" data-item-name="${itemNameEscaped}">Restore</button>` : ''}
-                    <button class="btn btn-danger btn-sm admin-delete-btn" data-listing-id="${listing.id}" data-item-name="${itemNameEscaped}">Delete</button>
                 </td>
             `;
 
@@ -216,12 +202,6 @@ if (typeof MarketplaceApp !== 'undefined') {
                     this.adminRestoreListing(listing.id, itemNameEscaped, listing.buyer_name, paymentStatus);
                 });
             }
-
-            // Add delete button handler
-            const deleteBtn = row.querySelector('.admin-delete-btn');
-            deleteBtn.addEventListener('click', () => {
-                this.adminDeleteListing(listing.id, itemNameEscaped);
-            });
 
             tbody.appendChild(row);
         });

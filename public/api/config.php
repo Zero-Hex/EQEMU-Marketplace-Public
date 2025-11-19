@@ -95,23 +95,31 @@ date_default_timezone_set('UTC');
 // ============================================================================
 // Alternate Currency Configuration (Optional High-Value Currency System)
 // ============================================================================
-// Set USE_ALT_CURRENCY to false to use platinum-only marketplace (default)
-// Set to true to enable custom alternate currency for high-value transactions
+// Configure in .env file:
+// - USE_ALT_CURRENCY=false (platinum-only, default)
+// - USE_ALT_CURRENCY=true (enable alternate currency)
 
-define('USE_ALT_CURRENCY', false); // Default: platinum-only marketplace
+// Load from .env or default to false (platinum-only)
+$useAltCurrency = env('USE_ALT_CURRENCY', 'false');
+$useAltCurrency = filter_var($useAltCurrency, FILTER_VALIDATE_BOOLEAN);
+define('USE_ALT_CURRENCY', $useAltCurrency);
 
-// If USE_ALT_CURRENCY is true, configure these settings:
-define('ALT_CURRENCY_ITEM_ID', 147623); // Item ID for your alternate currency
-define('ALT_CURRENCY_VALUE_PLATINUM', 1000000); // How much platinum = 1 alt currency
-define('ALT_CURRENCY_NAME', 'Bitcoin'); // Display name for your alternate currency
+// Load alternate currency settings from .env (with defaults)
+define('ALT_CURRENCY_ITEM_ID', env('ALT_CURRENCY_ITEM_ID', 147623));
+define('ALT_CURRENCY_VALUE_PLATINUM', env('ALT_CURRENCY_VALUE_PLATINUM', 1000000));
+define('ALT_CURRENCY_NAME', env('ALT_CURRENCY_NAME', 'Alt Currency'));
 
 // Calculated values (do not modify)
 define('ALT_CURRENCY_VALUE_COPPER', ALT_CURRENCY_VALUE_PLATINUM * 1000);
 
-// Legacy constants for backwards compatibility
-define('BITCOIN_ID', ALT_CURRENCY_ITEM_ID);
-define('BITCOIN_VALUE_PLATINUM', ALT_CURRENCY_VALUE_PLATINUM);
-define('BITCOIN_VALUE_COPPER', ALT_CURRENCY_VALUE_COPPER);
+// ============================================================================
+// Frontend Configuration (from .env)
+// ============================================================================
+define('ICON_BASE_URL', env('ICON_BASE_URL', ''));
+define('DEFAULT_ICON', env('DEFAULT_ICON', '🎒'));
+define('ITEMS_PER_PAGE', env('ITEMS_PER_PAGE', 20));
+define('COPPER_TO_PLATINUM', env('COPPER_TO_PLATINUM', 1000));
+define('REFRESH_INTERVAL_SECONDS', env('REFRESH_INTERVAL_SECONDS', 30));
 
 // Database connection class with schema caching
 class Database {
@@ -209,10 +217,24 @@ function handleCORS() {
     header('Access-Control-Allow-Origin: ' . ALLOWED_ORIGIN);
     header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
     header('Access-Control-Allow-Headers: Content-Type, Authorization');
+    header('Access-Control-Max-Age: 3600');
 
     if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
         http_response_code(200);
         exit();
+    }
+}
+
+// Set modern security headers (backup if .htaccess doesn't set them)
+function setSecurityHeaders() {
+    // Only set if not already set by Apache
+    if (!headers_sent()) {
+        header('X-Frame-Options: SAMEORIGIN');
+        header('X-Content-Type-Options: nosniff');
+        header('X-XSS-Protection: 1; mode=block');
+        header('Referrer-Policy: strict-origin-when-cross-origin');
+        header('Permissions-Policy: geolocation=(), microphone=(), camera=(), payment=(), usb=()');
+        header("Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: http: https:; connect-src 'self'; frame-src http: https:; frame-ancestors 'self';");
     }
 }
 
@@ -304,36 +326,36 @@ function requireAuth() {
 // ============================================================================
 // Alternate Currency Helper Functions
 // ============================================================================
-// Note: Currency constants (BITCOIN_ID, etc.) are configured at top of file
+// Note: Currency constants (ALT_CURRENCY_ITEM_ID, etc.) are configured at top of file
 // These functions work with alternate currency if USE_ALT_CURRENCY is enabled
 
 /**
  * Get alternate currency count from character inventory
  * @param PDO $conn Database connection
  * @param int $charId Character ID
- * @return int Number of Bitcoin in inventory
+ * @return int Number of alt currency in inventory
  */
-function getBitcoinFromInventory($conn, $charId) {
+function getAltCurrencyFromInventory($conn, $charId) {
     $stmt = $conn->prepare("
-        SELECT COALESCE(SUM(charges), 0) as bitcoin_count
+        SELECT COALESCE(SUM(charges), 0) as altcurrency_count
         FROM inventory
-        WHERE character_id = :char_id AND item_id = :bitcoin_id
+        WHERE character_id = :char_id AND item_id = :altcurrency_id
     ");
     $stmt->execute([
         ':char_id' => $charId,
-        ':bitcoin_id' => BITCOIN_ID
+        ':altcurrency_id' => ALT_CURRENCY_ITEM_ID
     ]);
     $result = $stmt->fetch();
-    return intval($result['bitcoin_count']);
+    return intval($result['altcurrency_count']);
 }
 
 /**
- * Get Bitcoin count from character alternate currency
+ * Get alt currency count from character alternate currency
  * @param PDO $conn Database connection
  * @param int $charId Character ID
- * @return int Number of Bitcoin in alternate currency
+ * @return int Number of alt currency in alternate currency
  */
-function getBitcoinFromAlternateCurrency($conn, $charId) {
+function getAltCurrencyFromAlternateCurrency($conn, $charId) {
     // Check if character_currency_alternate table exists
     $stmt = $conn->prepare("
         SELECT TABLE_NAME
@@ -348,25 +370,25 @@ function getBitcoinFromAlternateCurrency($conn, $charId) {
     }
 
     $stmt = $conn->prepare("
-        SELECT COALESCE(amount, 0) as bitcoin_count
+        SELECT COALESCE(amount, 0) as altcurrency_count
         FROM character_currency_alternate
-        WHERE char_id = :char_id AND currency_id = :bitcoin_id
+        WHERE char_id = :char_id AND currency_id = :altcurrency_id
     ");
     $stmt->execute([
         ':char_id' => $charId,
-        ':bitcoin_id' => BITCOIN_ID
+        ':altcurrency_id' => ALT_CURRENCY_ITEM_ID
     ]);
     $result = $stmt->fetch();
-    return $result ? intval($result['bitcoin_count']) : 0;
+    return $result ? intval($result['altcurrency_count']) : 0;
 }
 
 /**
- * Get total Bitcoin available for character
+ * Get total alt currency available for character
  * @param PDO $conn Database connection
  * @param int $charId Character ID
  * @return array ['inventory' => int, 'alternate' => int, 'total' => int]
  */
-function getTotalBitcoin($conn, $charId) {
+function getTotalAltCurrency($conn, $charId) {
     // If alternate currency is disabled, return zeros
     if (!USE_ALT_CURRENCY) {
         return [
@@ -376,8 +398,8 @@ function getTotalBitcoin($conn, $charId) {
         ];
     }
 
-    $inventory = getBitcoinFromInventory($conn, $charId);
-    $alternate = getBitcoinFromAlternateCurrency($conn, $charId);
+    $inventory = getAltCurrencyFromInventory($conn, $charId);
+    $alternate = getAltCurrencyFromAlternateCurrency($conn, $charId);
 
     return [
         'inventory' => $inventory,
@@ -387,26 +409,26 @@ function getTotalBitcoin($conn, $charId) {
 }
 
 /**
- * Deduct Bitcoin from character inventory
+ * Deduct alt currency from character inventory
  * @param PDO $conn Database connection
  * @param int $charId Character ID
  * @param int $amount Amount to deduct
  * @return bool Success
  */
-function deductBitcoinFromInventory($conn, $charId, $amount) {
+function deductAltCurrencyFromInventory($conn, $charId, $amount) {
     if ($amount <= 0) return true;
 
-    // Get all Bitcoin items in inventory
+    // Get all alt currency items in inventory
     $stmt = $conn->prepare("
         SELECT slot_id, charges
         FROM inventory
-        WHERE character_id = :char_id AND item_id = :bitcoin_id
+        WHERE character_id = :char_id AND item_id = :altcurrency_id
         ORDER BY slot_id ASC
         FOR UPDATE
     ");
     $stmt->execute([
         ':char_id' => $charId,
-        ':bitcoin_id' => BITCOIN_ID
+        ':altcurrency_id' => ALT_CURRENCY_ITEM_ID
     ]);
 
     $items = $stmt->fetchAll();
@@ -449,13 +471,13 @@ function deductBitcoinFromInventory($conn, $charId, $amount) {
 }
 
 /**
- * Deduct Bitcoin from character alternate currency
+ * Deduct alt currency from character alternate currency
  * @param PDO $conn Database connection
  * @param int $charId Character ID
  * @param int $amount Amount to deduct
  * @return bool Success
  */
-function deductBitcoinFromAlternateCurrency($conn, $charId, $amount) {
+function deductAltCurrencyFromAlternateCurrency($conn, $charId, $amount) {
     if ($amount <= 0) return true;
 
     // Check if table exists
@@ -474,13 +496,13 @@ function deductBitcoinFromAlternateCurrency($conn, $charId, $amount) {
     $stmt = $conn->prepare("
         UPDATE character_currency_alternate
         SET amount = amount - :amount
-        WHERE char_id = :char_id AND currency_id = :bitcoin_id AND amount >= :amount
+        WHERE char_id = :char_id AND currency_id = :altcurrency_id AND amount >= :amount
     ");
 
     $stmt->execute([
         ':amount' => $amount,
         ':char_id' => $charId,
-        ':bitcoin_id' => BITCOIN_ID
+        ':altcurrency_id' => ALT_CURRENCY_ITEM_ID
     ]);
 
     return $stmt->rowCount() > 0;
@@ -488,22 +510,22 @@ function deductBitcoinFromAlternateCurrency($conn, $charId, $amount) {
 
 /**
  * Calculate payment breakdown for purchases
- * Over 1M platinum: Uses Bitcoin first, then platinum for remainder
- * Under 1M platinum: Uses platinum first, then Bitcoin if needed
+ * Over 1M platinum: Uses alt currency first, then platinum for remainder
+ * Under 1M platinum: Uses platinum first, then alt currency if needed
  *
  * @param int $priceCopper Total price in copper
  * @param int $availablePlatinum Available platinum
- * @param int $availableBitcoin Available Bitcoin count
- * @param bool $bitcoinFirst If true, prioritize Bitcoin (for >1M purchases), else prioritize platinum
+ * @param int $availableAltCurrency Available alt currency count
+ * @param bool $altCurrencyFirst If true, prioritize alt currency (for >1M purchases), else prioritize platinum
  * @return array Payment breakdown details
  */
-function calculateBitcoinPayment($priceCopper, $availablePlatinum, $availableBitcoin, $bitcoinFirst = false) {
+function calculateAltCurrencyPayment($priceCopper, $availablePlatinum, $availableAltCurrency, $altCurrencyFirst = false) {
     // If alternate currency is disabled, return platinum-only calculation
     if (!USE_ALT_CURRENCY) {
         $pricePlatinum = $priceCopper / 1000;
         $canAfford = $availablePlatinum >= $pricePlatinum;
         return [
-            'bitcoin_to_deduct' => 0,
+            'alt_currency_to_deduct' => 0,
             'platinum_to_deduct' => $canAfford ? $pricePlatinum : $availablePlatinum,
             'platinum_to_refund' => 0,
             'total_sufficient' => $canAfford,
@@ -513,143 +535,143 @@ function calculateBitcoinPayment($priceCopper, $availablePlatinum, $availableBit
 
     $pricePlatinum = $priceCopper / 1000;
 
-    if ($bitcoinFirst) {
-        // Bitcoin-first logic (for purchases > 1M platinum)
-        // Calculate how much Bitcoin we need to cover the price
-        $bitcoinNeeded = floor($pricePlatinum / BITCOIN_VALUE_PLATINUM);
-        $remainingAfterBitcoin = $pricePlatinum - ($bitcoinNeeded * BITCOIN_VALUE_PLATINUM);
+    if ($altCurrencyFirst) {
+        // alt currency-first logic (for purchases > 1M platinum)
+        // Calculate how much alt currency we need to cover the price
+        $altCurrencyNeeded = floor($pricePlatinum / ALT_CURRENCY_VALUE_PLATINUM);
+        $remainingAfterAltCurrency = $pricePlatinum - ($altCurrencyNeeded * ALT_CURRENCY_VALUE_PLATINUM);
 
-        // Check if we have enough Bitcoin
-        if ($availableBitcoin < $bitcoinNeeded) {
-            // Not enough Bitcoin, calculate what we can do
-            $bitcoinValueProvided = $availableBitcoin * BITCOIN_VALUE_PLATINUM;
-            $platinumStillNeeded = $pricePlatinum - $bitcoinValueProvided;
+        // Check if we have enough alt currency
+        if ($availableAltCurrency < $altCurrencyNeeded) {
+            // Not enough alt currency, calculate what we can do
+            $altCurrencyValueProvided = $availableAltCurrency * ALT_CURRENCY_VALUE_PLATINUM;
+            $platinumStillNeeded = $pricePlatinum - $altCurrencyValueProvided;
 
             return [
-                'bitcoin_to_deduct' => $availableBitcoin,
+                'alt_currency_to_deduct' => $availableAltCurrency,
                 'platinum_to_deduct' => $platinumStillNeeded,
                 'platinum_to_refund' => 0,
                 'total_sufficient' => ($availablePlatinum >= $platinumStillNeeded),
-                'bitcoin_available' => $availableBitcoin,
-                'payment_method' => 'bitcoin_first'
+                'alt_currency_available' => $availableAltCurrency,
+                'payment_method' => 'altcurrency_first'
             ];
         }
 
-        // We have enough Bitcoin, check if platinum covers remainder
-        if ($availablePlatinum >= $remainingAfterBitcoin) {
+        // We have enough alt currency, check if platinum covers remainder
+        if ($availablePlatinum >= $remainingAfterAltCurrency) {
             return [
-                'bitcoin_to_deduct' => $bitcoinNeeded,
-                'platinum_to_deduct' => $remainingAfterBitcoin,
+                'alt_currency_to_deduct' => $altCurrencyNeeded,
+                'platinum_to_deduct' => $remainingAfterAltCurrency,
                 'platinum_to_refund' => 0,
                 'total_sufficient' => true,
-                'bitcoin_available' => $availableBitcoin,
-                'payment_method' => 'bitcoin_first'
+                'alt_currency_available' => $availableAltCurrency,
+                'payment_method' => 'altcurrency_first'
             ];
         } else {
-            // Not enough platinum for remainder, need one more Bitcoin
-            $bitcoinNeeded++;
-            if ($availableBitcoin < $bitcoinNeeded) {
+            // Not enough platinum for remainder, need one more alt currency
+            $altCurrencyNeeded++;
+            if ($availableAltCurrency < $altCurrencyNeeded) {
                 return [
-                    'bitcoin_to_deduct' => $availableBitcoin,
+                    'alt_currency_to_deduct' => $availableAltCurrency,
                     'platinum_to_deduct' => $availablePlatinum,
                     'platinum_to_refund' => 0,
                     'total_sufficient' => false,
-                    'bitcoin_available' => $availableBitcoin,
-                    'payment_method' => 'bitcoin_first'
+                    'alt_currency_available' => $availableAltCurrency,
+                    'payment_method' => 'altcurrency_first'
                 ];
             }
 
-            // Calculate refund from extra Bitcoin
-            $totalPaid = ($bitcoinNeeded * BITCOIN_VALUE_PLATINUM);
+            // Calculate refund from extra alt currency
+            $totalPaid = ($altCurrencyNeeded * ALT_CURRENCY_VALUE_PLATINUM);
             $platinumToRefund = $totalPaid - $pricePlatinum;
 
             return [
-                'bitcoin_to_deduct' => $bitcoinNeeded,
+                'alt_currency_to_deduct' => $altCurrencyNeeded,
                 'platinum_to_deduct' => 0,
                 'platinum_to_refund' => $platinumToRefund,
                 'total_sufficient' => true,
-                'bitcoin_available' => $availableBitcoin,
-                'payment_method' => 'bitcoin_first'
+                'alt_currency_available' => $availableAltCurrency,
+                'payment_method' => 'altcurrency_first'
             ];
         }
     } else {
         // Platinum-first logic (for purchases < 1M platinum)
-        // If enough platinum, no Bitcoin needed
+        // If enough platinum, no alt currency needed
         if ($availablePlatinum >= $pricePlatinum) {
             return [
-                'bitcoin_to_deduct' => 0,
+                'alt_currency_to_deduct' => 0,
                 'platinum_to_deduct' => $pricePlatinum,
                 'platinum_to_refund' => 0,
                 'total_sufficient' => true,
-                'bitcoin_available' => $availableBitcoin,
+                'alt_currency_available' => $availableAltCurrency,
                 'payment_method' => 'platinum_first'
             ];
         }
 
         // Calculate how much we need after platinum
         $platinumShortfall = $pricePlatinum - $availablePlatinum;
-        $bitcoinNeeded = ceil($platinumShortfall / BITCOIN_VALUE_PLATINUM);
+        $altCurrencyNeeded = ceil($platinumShortfall / ALT_CURRENCY_VALUE_PLATINUM);
 
-        // Check if we have enough Bitcoin
-        if ($availableBitcoin < $bitcoinNeeded) {
+        // Check if we have enough alt currency
+        if ($availableAltCurrency < $altCurrencyNeeded) {
             return [
-                'bitcoin_to_deduct' => $availableBitcoin,
+                'alt_currency_to_deduct' => $availableAltCurrency,
                 'platinum_to_deduct' => $availablePlatinum,
                 'platinum_to_refund' => 0,
                 'total_sufficient' => false,
-                'bitcoin_available' => $availableBitcoin,
+                'alt_currency_available' => $availableAltCurrency,
                 'payment_method' => 'platinum_first'
             ];
         }
 
         // Calculate refund
-        $bitcoinValueUsed = $bitcoinNeeded * BITCOIN_VALUE_PLATINUM;
-        $platinumToRefund = ($availablePlatinum + $bitcoinValueUsed) - $pricePlatinum;
+        $altCurrencyValueUsed = $altCurrencyNeeded * ALT_CURRENCY_VALUE_PLATINUM;
+        $platinumToRefund = ($availablePlatinum + $altCurrencyValueUsed) - $pricePlatinum;
 
         return [
-            'bitcoin_to_deduct' => $bitcoinNeeded,
+            'alt_currency_to_deduct' => $altCurrencyNeeded,
             'platinum_to_deduct' => $availablePlatinum,
             'platinum_to_refund' => $platinumToRefund,
             'total_sufficient' => true,
-            'bitcoin_available' => $availableBitcoin,
+            'alt_currency_available' => $availableAltCurrency,
             'payment_method' => 'platinum_first'
         ];
     }
 }
 
 /**
- * Execute Bitcoin payment (deduct Bitcoin from inventory and alternate currency)
+ * Execute alt currency payment (deduct alt currency from inventory and alternate currency)
  * @param PDO $conn Database connection
  * @param int $charId Character ID
- * @param int $bitcoinAmount Amount of Bitcoin to deduct
+ * @param int $altCurrencyAmount Amount of alt currency to deduct
  * @return array ['success' => bool, 'from_inventory' => int, 'from_alternate' => int]
  */
-function executeBitcoinPayment($conn, $charId, $bitcoinAmount) {
-    $bitcoin = getTotalBitcoin($conn, $charId);
+function executeAltCurrencyPayment($conn, $charId, $altCurrencyAmount) {
+    $altCurrency = getTotalAltCurrency($conn, $charId);
 
-    if ($bitcoin['total'] < $bitcoinAmount) {
+    if ($altCurrency['total'] < $altCurrencyAmount) {
         return [
             'success' => false,
-            'error' => 'Insufficient Bitcoin'
+            'error' => 'Insufficient alt currency'
         ];
     }
 
     $fromInventory = 0;
     $fromAlternate = 0;
-    $remaining = $bitcoinAmount;
+    $remaining = $altCurrencyAmount;
 
     // Try to take from alternate currency first
-    if ($bitcoin['alternate'] > 0 && $remaining > 0) {
-        $takeFromAlternate = min($bitcoin['alternate'], $remaining);
-        if (deductBitcoinFromAlternateCurrency($conn, $charId, $takeFromAlternate)) {
+    if ($altCurrency['alternate'] > 0 && $remaining > 0) {
+        $takeFromAlternate = min($altCurrency['alternate'], $remaining);
+        if (deductAltCurrencyFromAlternateCurrency($conn, $charId, $takeFromAlternate)) {
             $fromAlternate = $takeFromAlternate;
             $remaining -= $takeFromAlternate;
         }
     }
 
     // Take remaining from inventory
-    if ($remaining > 0 && $bitcoin['inventory'] > 0) {
-        if (deductBitcoinFromInventory($conn, $charId, $remaining)) {
+    if ($remaining > 0 && $altCurrency['inventory'] > 0) {
+        if (deductAltCurrencyFromInventory($conn, $charId, $remaining)) {
             $fromInventory = $remaining;
             $remaining = 0;
         }
@@ -664,13 +686,13 @@ function executeBitcoinPayment($conn, $charId, $bitcoinAmount) {
 }
 
 /**
- * Add Bitcoin to character alternate currency
+ * Add alt currency to character alternate currency
  * @param PDO $conn Database connection
  * @param int $charId Character ID
- * @param int $amount Amount of Bitcoin to add
+ * @param int $amount Amount of alt currency to add
  * @return bool Success
  */
-function addBitcoinToAlternateCurrency($conn, $charId, $amount) {
+function addAltCurrencyToAlternateCurrency($conn, $charId, $amount) {
     if ($amount <= 0) return true;
 
     // Check if table exists
@@ -690,11 +712,11 @@ function addBitcoinToAlternateCurrency($conn, $charId, $amount) {
     $stmt = $conn->prepare("
         SELECT amount
         FROM character_currency_alternate
-        WHERE char_id = :char_id AND currency_id = :bitcoin_id
+        WHERE char_id = :char_id AND currency_id = :altcurrency_id
     ");
     $stmt->execute([
         ':char_id' => $charId,
-        ':bitcoin_id' => BITCOIN_ID
+        ':altcurrency_id' => ALT_CURRENCY_ITEM_ID
     ]);
 
     $existing = $stmt->fetch();
@@ -704,22 +726,22 @@ function addBitcoinToAlternateCurrency($conn, $charId, $amount) {
         $stmt = $conn->prepare("
             UPDATE character_currency_alternate
             SET amount = amount + :amount
-            WHERE char_id = :char_id AND currency_id = :bitcoin_id
+            WHERE char_id = :char_id AND currency_id = :altcurrency_id
         ");
         $stmt->execute([
             ':amount' => $amount,
             ':char_id' => $charId,
-            ':bitcoin_id' => BITCOIN_ID
+            ':altcurrency_id' => ALT_CURRENCY_ITEM_ID
         ]);
     } else {
         // Insert new record
         $stmt = $conn->prepare("
             INSERT INTO character_currency_alternate (char_id, currency_id, amount)
-            VALUES (:char_id, :bitcoin_id, :amount)
+            VALUES (:char_id, :altcurrency_id, :amount)
         ");
         $stmt->execute([
             ':char_id' => $charId,
-            ':bitcoin_id' => BITCOIN_ID,
+            ':altcurrency_id' => ALT_CURRENCY_ITEM_ID,
             ':amount' => $amount
         ]);
     }
@@ -728,40 +750,132 @@ function addBitcoinToAlternateCurrency($conn, $charId, $amount) {
 }
 
 /**
- * Convert earnings to Bitcoin and platinum
- * For amounts over 1M platinum, convert millions to Bitcoin and remainder to platinum
+ * Convert earnings to alt currency and platinum
+ * For amounts over 1M platinum, convert millions to alt currency and remainder to platinum
  * @param int $totalCopper Total earnings in copper
- * @return array ['bitcoin' => int, 'platinum_remainder' => int]
+ * @return array ['alt_currency' => int, 'platinum_remainder' => int]
  */
-function convertEarningsToBitcoin($totalCopper) {
+function convertEarningsToAltCurrency($totalCopper) {
     $totalPlatinum = $totalCopper / 1000;
 
     // If alternate currency is disabled, return all as platinum
     if (!USE_ALT_CURRENCY) {
         return [
-            'bitcoin' => 0,
+            'alt_currency' => 0,
             'platinum_remainder' => $totalPlatinum,
             'copper_remainder' => $totalCopper
         ];
     }
 
-    if ($totalPlatinum <= BITCOIN_VALUE_PLATINUM) {
+    if ($totalPlatinum <= ALT_CURRENCY_VALUE_PLATINUM) {
         return [
-            'bitcoin' => 0,
+            'alt_currency' => 0,
             'platinum_remainder' => $totalPlatinum,
             'copper_remainder' => $totalCopper
         ];
     }
 
-    // Calculate Bitcoin (millions/billions)
-    $bitcoin = floor($totalPlatinum / BITCOIN_VALUE_PLATINUM);
-    $platinumRemainder = $totalPlatinum - ($bitcoin * BITCOIN_VALUE_PLATINUM);
+    // Calculate alt currency (millions/billions)
+    $altCurrency = floor($totalPlatinum / ALT_CURRENCY_VALUE_PLATINUM);
+    $platinumRemainder = $totalPlatinum - ($altCurrency * ALT_CURRENCY_VALUE_PLATINUM);
     $copperRemainder = $platinumRemainder * 1000;
 
     return [
-        'bitcoin' => $bitcoin,
+        'alt_currency' => $altCurrency,
         'platinum_remainder' => $platinumRemainder,
         'copper_remainder' => $copperRemainder
     ];
+}
+
+// ============================================================================
+// Rate Limiting Class (File-based)
+// ============================================================================
+/**
+ * Simple file-based rate limiter to prevent API abuse
+ * Usage: RateLimiter::check('login', 5, 60); // 5 attempts per 60 seconds
+ */
+class RateLimiter {
+    private static $cacheDir = null;
+
+    /**
+     * Initialize cache directory
+     */
+    private static function init() {
+        if (self::$cacheDir === null) {
+            self::$cacheDir = sys_get_temp_dir() . '/eqemu_rate_limit';
+            if (!is_dir(self::$cacheDir)) {
+                mkdir(self::$cacheDir, 0700, true);
+            }
+        }
+    }
+
+    /**
+     * Check if rate limit is exceeded
+     * @param string $identifier Unique identifier (e.g., IP address, user ID)
+     * @param int $maxRequests Maximum requests allowed
+     * @param int $windowSeconds Time window in seconds
+     * @return bool True if limit exceeded, false otherwise
+     */
+    public static function check($identifier, $maxRequests = 60, $windowSeconds = 60) {
+        self::init();
+
+        $key = md5($identifier);
+        $filepath = self::$cacheDir . '/' . $key . '.json';
+
+        $now = time();
+        $requests = [];
+
+        // Load existing requests
+        if (file_exists($filepath)) {
+            $data = json_decode(file_get_contents($filepath), true);
+            if ($data && isset($data['requests'])) {
+                $requests = $data['requests'];
+            }
+        }
+
+        // Filter out old requests outside the time window
+        $requests = array_filter($requests, function($timestamp) use ($now, $windowSeconds) {
+            return ($now - $timestamp) < $windowSeconds;
+        });
+
+        // Check if limit exceeded
+        if (count($requests) >= $maxRequests) {
+            return true; // Rate limit exceeded
+        }
+
+        // Add current request
+        $requests[] = $now;
+
+        // Save updated requests
+        file_put_contents($filepath, json_encode(['requests' => $requests]));
+
+        return false; // Within rate limit
+    }
+
+    /**
+     * Get identifier from request (IP + User Agent)
+     * @return string Unique identifier
+     */
+    public static function getIdentifier() {
+        $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+        $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? 'unknown';
+        return $ip . ':' . md5($userAgent);
+    }
+
+    /**
+     * Clean up old rate limit files (call periodically)
+     */
+    public static function cleanup() {
+        self::init();
+
+        $files = glob(self::$cacheDir . '/*.json');
+        $now = time();
+
+        foreach ($files as $file) {
+            if (($now - filemtime($file)) > 3600) { // 1 hour old
+                unlink($file);
+            }
+        }
+    }
 }
 ?>

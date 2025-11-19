@@ -24,106 +24,30 @@ A comprehensive web-based marketplace system for EverQuest Emulator servers, all
 - **Apache 2.4+** or **Nginx 1.18+** with mod_rewrite
 - **Perl 5.10+** with JSON module
 
-## Installation
+## Quick Start
 
-### Local Development Setup (Linux)
+### Basic Installation
 
 ```bash
-# Clone to a directory outside your web root
-cd /home/yourusername
+# 1. Clone the repository
 git clone https://github.com/Zero-Hex/eqemu-marketplace-solo.git marketplace
 cd marketplace
 
-# Configure environment
+# 2. Configure environment
 cp .env_example .env
-nano .env  # Edit with your database credentials
+nano .env  # Update database credentials and JWT secret
 
-# Import database
+# 3. Import database
 mysql -u root -p peq < install/sql/fresh_install.sql
 
-# Configure Apache virtual host (point DocumentRoot to public/ subdirectory)
-sudo nano /etc/apache2/sites-available/marketplace.conf
-```
+# 4. Configure Apache to point to public/ directory
+# See INSTALL.md for detailed Apache/XAMPP setup
 
-**Apache Virtual Host Configuration:**
-```apache
-<VirtualHost *:8080>
-    ServerName marketplace.local
-    DocumentRoot /home/yourusername/marketplace/public  # Point to public/ subdirectory
-
-    <Directory /home/yourusername/marketplace/public>
-        Options -Indexes +FollowSymLinks
-        AllowOverride All
-        Require all granted
-    </Directory>
-</VirtualHost>
-```
-
-```bash
-# Enable site and restart Apache
-sudo a2enmod rewrite
-sudo a2ensite marketplace.conf
-sudo systemctl restart apache2
-
-# Copy quest scripts to your EQEMU server
+# 5. Copy quest scripts to your EQEMU server
 cp install/quests/*.pl /path/to/eqemu/server/quests/global/
 ```
 
-Access at `http://marketplace.local:8080`
-
-### Local Development Setup (Windows/XAMPP)
-
-```cmd
-REM Clone or extract to C:\Marketplace\
-cd C:\Marketplace
-
-REM Configure environment
-copy .env_example .env
-notepad .env
-
-REM Import database
-C:\xampp\mysql\bin\mysql -u root -p peq < install\sql\fresh_install.sql
-```
-
-**XAMPP Virtual Host Configuration:**
-
-Edit `C:\xampp\apache\conf\extra\httpd-vhosts.conf`:
-```apache
-<VirtualHost *:8080>
-    ServerName marketplace.local
-    DocumentRoot "C:/Marketplace/public"  # Point to public subdirectory
-
-    <Directory "C:/Marketplace/public">
-        Options -Indexes +FollowSymLinks
-        AllowOverride All
-        Require all granted
-    </Directory>
-</VirtualHost>
-```
-
-Restart Apache in XAMPP Control Panel, then access at `http://localhost:8080`
-
-### Production Deployment
-
-Always install outside your publicly accessible web directory. Point your Apache DocumentRoot to the `/public` subdirectory only.
-
-```bash
-# Install to /home/eqemu/marketplace/ (NOT in web root)
-# Point DocumentRoot to /home/eqemu/marketplace/public
-
-# Generate secure JWT secret
-openssl rand -hex 32
-
-# Update .env with production values
-nano .env
-
-# Set DEBUG_MODE=false
-# Set ALLOWED_ORIGIN=https://yourdomain.com
-# Use strong JWT_SECRET from above
-
-# Set up SSL (recommended)
-sudo certbot --apache -d marketplace.yourdomain.com
-```
+**For detailed installation instructions**, including Apache virtual host configuration, Windows/XAMPP setup, production deployment, and troubleshooting, see **[INSTALL.md](INSTALL.md)**.
 
 ### Directory Structure
 
@@ -144,12 +68,10 @@ marketplace/                    # Application root (NOT web-accessible)
 
 ## Configuration
 
-### Environment Variables
-
-All configuration is done via the `.env` file (never commit this to git):
+All configuration is centralized in the `.env` file:
 
 ```env
-# Database Configuration
+# Database
 DB_HOST=localhost
 DB_NAME=peq
 DB_USER=your_mysql_username
@@ -158,21 +80,18 @@ DB_PASS=your_mysql_password
 # Security (generate with: openssl rand -hex 32)
 JWT_SECRET=your-secure-random-string
 
-# Alternate Currency (Optional - defaults to platinum-only)
+# Optional: Alternate Currency (defaults to platinum-only)
 USE_ALT_CURRENCY=false
-ALT_CURRENCY_ITEM_ID=147623
-ALT_CURRENCY_VALUE_PLATINUM=1000000
-ALT_CURRENCY_NAME=Bitcoin
+ALT_CURRENCY_NAME=Alt Currency
 ```
 
-### Alternate Currency
-
-By default, the marketplace uses **platinum-only** transactions. To enable alternate currency for high-value items, set `USE_ALT_CURRENCY=true` in `.env` and update the matching settings in `install/quests/Marketplace_Broker.pl`.
+**For comprehensive configuration options**, including alternate currency setup, debug mode, pagination settings, and more, see **[CONFIGURATION.md](CONFIGURATION.md)** and **[INSTALL.md](INSTALL.md)**.
 
 ## Documentation
 
-- **[INSTALL.md](INSTALL.md)** - Complete installation guide with troubleshooting
-- **[install/sql/README.md](install/sql/README.md)** - Database migration guide
+- **[INSTALL.md](INSTALL.md)** - Complete installation guide for Linux, Windows, and production
+- **[CONFIGURATION.md](CONFIGURATION.md)** - Comprehensive configuration reference
+- **[install/sql/README.md](install/sql/README.md)** - Database schema and installation guide
 
 ## Screenshots
 

@@ -1,37 +1,58 @@
 // API wrapper for EQEMU Marketplace
 class MarketplaceAPI {
     constructor() {
-        this.baseURL = CONFIG.API_BASE_URL;
+        this.baseURL = CONFIG?.API_BASE_URL || '/api';
         this.token = this.getToken();
+        this._pendingRequests = new Map(); // For request deduplication
+        this.defaultTimeout = 30000; // 30 seconds
+        this.maxRetries = 3;
     }
 
     // Helper method to get auth token from storage
     getToken() {
-        return localStorage.getItem(CONFIG.STORAGE_KEYS.TOKEN);
+        const TOKEN_KEY = CONFIG?.STORAGE_KEYS?.TOKEN || 'eqemu_token';
+        return localStorage.getItem(TOKEN_KEY);
     }
 
     // Helper method to set auth token
     setToken(token) {
-        localStorage.setItem(CONFIG.STORAGE_KEYS.TOKEN, token);
+        const TOKEN_KEY = CONFIG?.STORAGE_KEYS?.TOKEN || 'eqemu_token';
+        localStorage.setItem(TOKEN_KEY, token);
         this.token = token;
     }
 
     // Helper method to clear auth token
     clearToken() {
-        localStorage.removeItem(CONFIG.STORAGE_KEYS.TOKEN);
-        localStorage.removeItem(CONFIG.STORAGE_KEYS.USER);
-        localStorage.removeItem(CONFIG.STORAGE_KEYS.CHARACTERS);
+        // Use hardcoded keys as fallback in case CONFIG isn't loaded yet
+        const TOKEN_KEY = CONFIG?.STORAGE_KEYS?.TOKEN || 'eqemu_token';
+        const USER_KEY = CONFIG?.STORAGE_KEYS?.USER || 'eqemu_user';
+        const CHARACTERS_KEY = CONFIG?.STORAGE_KEYS?.CHARACTERS || 'eqemu_characters';
+
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(USER_KEY);
+        localStorage.removeItem(CHARACTERS_KEY);
         this.token = null;
+
+        // Also clear hardcoded keys as a safety measure
+        localStorage.removeItem('eqemu_token');
+        localStorage.removeItem('eqemu_user');
+        localStorage.removeItem('eqemu_characters');
     }
 
-    // Generic fetch wrapper with error handling
+    // Generic fetch wrapper with error handling and timeout
     async request(endpoint, options = {}) {
         const url = `${this.baseURL}${endpoint}`;
+
+        // Create abort controller for timeout
+        const controller = new AbortController();
+        const timeout = options.timeout || this.defaultTimeout;
+        const timeoutId = setTimeout(() => controller.abort(), timeout);
 
         const defaultOptions = {
             headers: {
                 'Content-Type': 'application/json',
-            }
+            },
+            signal: controller.signal
         };
 
         // Add auth token if available
@@ -47,6 +68,7 @@ class MarketplaceAPI {
 
         try {
             const response = await fetch(url, finalOptions);
+            clearTimeout(timeoutId);
 
             // Get response text first
             const responseText = await response.text();
@@ -68,9 +90,81 @@ class MarketplaceAPI {
 
             return data;
         } catch (error) {
+            clearTimeout(timeoutId);
+
+            if (error.name === 'AbortError') {
+                throw new Error('Request timeout - please try again');
+            }
+
             console.error('API Error:', error);
             throw error;
         }
+    }
+
+    // Request with automatic retry logic
+    async requestWithRetry(endpoint, options = {}, maxRetries = this.maxRetries) {
+        let lastError;
+
+        for (let attempt = 0; attempt < maxRetries; attempt++) {
+            try {
+                return await this.request(endpoint, options);
+            } catch (error) {
+                lastError = error;
+
+                // Don't retry on authentication errors or client errors (4xx)
+                if (error.message.includes('Unauthorized') || error.message.includes('Bad Request')) {
+                    throw error;
+                }
+
+                // If this was the last attempt, throw the error
+                if (attempt === maxRetries - 1) {
+                    throw error;
+                }
+
+                // Exponential backoff: 2^attempt seconds
+                const delay = Math.pow(2, attempt) * 1000;
+                console.log(`Request failed, retrying in ${delay}ms... (attempt ${attempt + 1}/${maxRetries})`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+        }
+
+        throw lastError;
+    }
+
+    // Request deduplication - prevents multiple identical requests
+    async requestOnce(endpoint, options = {}) {
+        const method = options.method || 'GET';
+        const key = `${method}:${endpoint}`;
+
+        // If there's already a pending request with this key, return it
+        if (this._pendingRequests.has(key)) {
+            return this._pendingRequests.get(key);
+        }
+
+        // Create new request
+        const promise = this.request(endpoint, options);
+        this._pendingRequests.set(key, promise);
+
+        try {
+            const result = await promise;
+            return result;
+        } finally {
+            // Clean up after request completes (success or failure)
+            this._pendingRequests.delete(key);
+        }
+    }
+
+    // Build URL with query parameters using modern URL API
+    buildURL(path, params = {}) {
+        const url = new URL(path, window.location.origin + this.baseURL);
+
+        Object.entries(params).forEach(([key, value]) => {
+            if (value !== null && value !== undefined && value !== '') {
+                url.searchParams.append(key, value);
+            }
+        });
+
+        return url.pathname + url.search;
     }
 
     // Authentication
@@ -79,13 +173,15 @@ class MarketplaceAPI {
             method: 'POST',
             body: { username, password }
         });
-        
+
         if (data.token) {
             this.setToken(data.token);
-            localStorage.setItem(CONFIG.STORAGE_KEYS.USER, JSON.stringify(data.user));
-            localStorage.setItem(CONFIG.STORAGE_KEYS.CHARACTERS, JSON.stringify(data.characters));
+            const USER_KEY = CONFIG?.STORAGE_KEYS?.USER || 'eqemu_user';
+            const CHARACTERS_KEY = CONFIG?.STORAGE_KEYS?.CHARACTERS || 'eqemu_characters';
+            localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+            localStorage.setItem(CHARACTERS_KEY, JSON.stringify(data.characters));
         }
-        
+
         return data;
     }
 
@@ -111,13 +207,15 @@ class MarketplaceAPI {
 
     // Get current user info
     getCurrentUser() {
-        const userStr = localStorage.getItem(CONFIG.STORAGE_KEYS.USER);
+        const USER_KEY = CONFIG?.STORAGE_KEYS?.USER || 'eqemu_user';
+        const userStr = localStorage.getItem(USER_KEY);
         return userStr ? JSON.parse(userStr) : null;
     }
 
     // Get user's characters
     getCharacters() {
-        const charsStr = localStorage.getItem(CONFIG.STORAGE_KEYS.CHARACTERS);
+        const CHARACTERS_KEY = CONFIG?.STORAGE_KEYS?.CHARACTERS || 'eqemu_characters';
+        const charsStr = localStorage.getItem(CHARACTERS_KEY);
         return charsStr ? JSON.parse(charsStr) : [];
     }
 
@@ -138,44 +236,42 @@ class MarketplaceAPI {
 
     // Listings API
     async getListings(filters = {}) {
-        const queryParams = new URLSearchParams();
+        const params = {};
 
-        if (filters.search) queryParams.append('search', filters.search);
-        if (filters.minPrice) queryParams.append('min_price', filters.minPrice);
-        if (filters.maxPrice) queryParams.append('max_price', filters.maxPrice);
-        if (filters.sortBy) queryParams.append('sort_by', filters.sortBy);
-        if (filters.itemType) queryParams.append('item_type', filters.itemType);
-        if (filters.itemClass) queryParams.append('item_class', filters.itemClass);
+        if (filters.search) params.search = filters.search;
+        if (filters.minPrice) params.min_price = filters.minPrice;
+        if (filters.maxPrice) params.max_price = filters.maxPrice;
+        if (filters.sortBy) params.sort_by = filters.sortBy;
+        if (filters.itemType) params.item_type = filters.itemType;
+        if (filters.itemClass) params.item_class = filters.itemClass;
 
         // Advanced stat filters
-        if (filters.minAC) queryParams.append('min_ac', filters.minAC);
-        if (filters.minHP) queryParams.append('min_hp', filters.minHP);
-        if (filters.minMana) queryParams.append('min_mana', filters.minMana);
-        if (filters.minSTR) queryParams.append('min_str', filters.minSTR);
-        if (filters.minDEX) queryParams.append('min_dex', filters.minDEX);
-        if (filters.minSTA) queryParams.append('min_sta', filters.minSTA);
-        if (filters.minAGI) queryParams.append('min_agi', filters.minAGI);
-        if (filters.minINT) queryParams.append('min_int', filters.minINT);
-        if (filters.minWIS) queryParams.append('min_wis', filters.minWIS);
-        if (filters.minCHA) queryParams.append('min_cha', filters.minCHA);
-        if (filters.minFR) queryParams.append('min_fr', filters.minFR);
-        if (filters.minCR) queryParams.append('min_cr', filters.minCR);
-        if (filters.minMR) queryParams.append('min_mr', filters.minMR);
-        if (filters.minPR) queryParams.append('min_pr', filters.minPR);
-        if (filters.minDR) queryParams.append('min_dr', filters.minDR);
+        if (filters.minAC) params.min_ac = filters.minAC;
+        if (filters.minHP) params.min_hp = filters.minHP;
+        if (filters.minMana) params.min_mana = filters.minMana;
+        if (filters.minSTR) params.min_str = filters.minSTR;
+        if (filters.minDEX) params.min_dex = filters.minDEX;
+        if (filters.minSTA) params.min_sta = filters.minSTA;
+        if (filters.minAGI) params.min_agi = filters.minAGI;
+        if (filters.minINT) params.min_int = filters.minINT;
+        if (filters.minWIS) params.min_wis = filters.minWIS;
+        if (filters.minCHA) params.min_cha = filters.minCHA;
+        if (filters.minFR) params.min_fr = filters.minFR;
+        if (filters.minCR) params.min_cr = filters.minCR;
+        if (filters.minMR) params.min_mr = filters.minMR;
+        if (filters.minPR) params.min_pr = filters.minPR;
+        if (filters.minDR) params.min_dr = filters.minDR;
 
         // Weapon stat filters
-        if (filters.minDamage) queryParams.append('min_damage', filters.minDamage);
-        if (filters.maxDelay) queryParams.append('max_delay', filters.maxDelay);
+        if (filters.minDamage) params.min_damage = filters.minDamage;
+        if (filters.maxDelay) params.max_delay = filters.maxDelay;
 
         // Pagination
-        if (filters.page) queryParams.append('page', filters.page);
-        if (filters.limit) queryParams.append('limit', filters.limit);
+        if (filters.page) params.page = filters.page;
+        if (filters.limit) params.limit = filters.limit;
 
-        const query = queryParams.toString();
-        const endpoint = query ? `/listings/list.php?${query}` : '/listings/list.php';
-
-        return await this.request(endpoint);
+        const endpoint = this.buildURL('/listings/list.php', params);
+        return await this.requestOnce(endpoint); // Use deduplication for GET requests
     }
 
     async getListingById(listingId) {
@@ -196,11 +292,8 @@ async createListing(listingData) {
         body: JSON.stringify(listingData)
     });
 
-    // DEBUG: Log the response
     const responseText = await response.text();
-    console.log('RAW RESPONSE:', responseText);
-    console.log('Response Status:', response.status);
-    
+
     try {
         const data = JSON.parse(responseText);
         if (!data.success) {
@@ -227,11 +320,8 @@ async purchaseItem(listingId, characterId) {
         })
     });
 
-    // DEBUG: Log the response
     const responseText = await response.text();
-    console.log('RAW RESPONSE:', responseText);
-    console.log('Response Status:', response.status);
-    
+
     try {
         const data = JSON.parse(responseText);
         if (!data.success) {
@@ -299,28 +389,26 @@ async purchaseItem(listingId, characterId) {
 
     // WTB (Want to Buy) API
     async getWTBListings(filters = {}) {
-        const queryParams = new URLSearchParams();
+        const params = {};
 
-        if (filters.search) queryParams.append('search', filters.search);
-        if (filters.minPrice) queryParams.append('min_price', filters.minPrice);
-        if (filters.maxPrice) queryParams.append('max_price', filters.maxPrice);
-        if (filters.sortBy) queryParams.append('sort_by', filters.sortBy);
-        if (filters.itemType) queryParams.append('item_type', filters.itemType);
-        if (filters.itemClass) queryParams.append('item_class', filters.itemClass);
-        if (filters.itemId) queryParams.append('item_id', filters.itemId);
+        if (filters.search) params.search = filters.search;
+        if (filters.minPrice) params.min_price = filters.minPrice;
+        if (filters.maxPrice) params.max_price = filters.maxPrice;
+        if (filters.sortBy) params.sort_by = filters.sortBy;
+        if (filters.itemType) params.item_type = filters.itemType;
+        if (filters.itemClass) params.item_class = filters.itemClass;
+        if (filters.itemId) params.item_id = filters.itemId;
 
-        const query = queryParams.toString();
-        const endpoint = query ? `/wtb/list.php?${query}` : '/wtb/list.php';
-
-        return await this.request(endpoint);
+        const endpoint = this.buildURL('/wtb/list.php', params);
+        return await this.requestOnce(endpoint); // Use deduplication for GET requests
     }
 
     async getMyWTBListings(characterId, status = 'active') {
-        const queryParams = new URLSearchParams();
-        queryParams.append('char_id', characterId);
-        if (status) queryParams.append('status', status);
+        const params = { char_id: characterId };
+        if (status) params.status = status;
 
-        return await this.request(`/wtb/my-wtb.php?${queryParams.toString()}`);
+        const endpoint = this.buildURL('/wtb/my-wtb.php', params);
+        return await this.request(endpoint);
     }
 
     async createWTBListing(wtbData) {
@@ -358,13 +446,15 @@ async purchaseItem(listingId, characterId) {
 
     // Notifications API
     async getNotifications(characterId, unreadOnly = false, page = 1, perPage = 20) {
-        const queryParams = new URLSearchParams();
-        queryParams.append('char_id', characterId);
-        if (unreadOnly) queryParams.append('unread_only', '1');
-        queryParams.append('page', page);
-        queryParams.append('per_page', perPage);
+        const params = {
+            char_id: characterId,
+            page: page,
+            per_page: perPage
+        };
+        if (unreadOnly) params.unread_only = '1';
 
-        return await this.request(`/notifications/list.php?${queryParams.toString()}`);
+        const endpoint = this.buildURL('/notifications/list.php', params);
+        return await this.request(endpoint);
     }
 
     async markNotificationRead(characterId, notificationId = null) {
@@ -397,11 +487,13 @@ async purchaseItem(listingId, characterId) {
 
     // Item Search API (for autocomplete)
     async searchItems(query, limit = 10) {
-        const queryParams = new URLSearchParams();
-        queryParams.append('search', query);
-        queryParams.append('limit', limit);
+        const params = {
+            search: query,
+            limit: limit
+        };
 
-        return await this.request(`/items/search.php?${queryParams.toString()}`);
+        const endpoint = this.buildURL('/items/search.php', params);
+        return await this.request(endpoint);
     }
 }
 

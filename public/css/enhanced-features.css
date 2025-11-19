@@ -2283,3 +2283,167 @@
         margin-bottom: 1rem;
     }
 }
+
+
+/* =================================================================== */
+/* Item Inspection Popout (for WTB item search) */
+/* =================================================================== */
+
+.item-inspection-popout {
+    position: absolute;
+    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+    border: 2px solid #3498db;
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(52, 152, 219, 0.2), 0 4px 16px rgba(0, 0, 0, 0.15);
+    z-index: 10000;
+    min-width: 280px;
+    max-width: 350px;
+    pointer-events: auto;
+    opacity: 0;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+    transform: scale(0.95);
+    overflow: hidden;
+}
+
+.item-inspection-popout.visible {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.item-inspection-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 1rem;
+    background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+    color: white;
+}
+
+.item-inspection-icon {
+    width: 50px;
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.2);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 8px;
+    font-size: 1.75rem;
+    flex-shrink: 0;
+}
+
+.item-inspection-icon img {
+    width: 46px;
+    height: 46px;
+    object-fit: contain;
+}
+
+.item-inspection-title {
+    flex: 1;
+    min-width: 0;
+}
+
+.item-inspection-name {
+    font-weight: 700;
+    font-size: 1.05rem;
+    color: white;
+    margin: 0 0 0.35rem 0;
+    line-height: 1.2;
+    word-wrap: break-word;
+}
+
+.item-inspection-id {
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.85);
+    margin: 0 0 0.25rem 0;
+    font-weight: 500;
+}
+
+.item-inspection-stacksize {
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.95);
+    margin: 0;
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.15);
+    display: inline-block;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+}
+
+.item-inspection-body {
+    padding: 1rem;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.5rem;
+}
+
+.item-inspection-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: 0.5rem;
+    background: #f8f9fa;
+    border-left: 3px solid #27ae60;
+    border-radius: 4px;
+    font-size: 0.85rem;
+}
+
+.item-inspection-stat-label {
+    font-weight: 600;
+    color: #666;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.item-inspection-stat-value {
+    font-weight: 700;
+    color: #27ae60;
+    font-size: 1rem;
+}
+
+.item-inspection-no-stats {
+    grid-column: 1 / -1;
+    text-align: center;
+    color: #999;
+    padding: 1.5rem 1rem;
+    font-style: italic;
+    font-size: 0.9rem;
+}
+
+.item-inspection-footer {
+    padding: 0 1rem 1rem 1rem;
+}
+
+.item-inspection-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.65rem 1rem;
+    background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+    color: white;
+    text-decoration: none;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(52, 152, 219, 0.3);
+}
+
+.item-inspection-link:hover {
+    background: linear-gradient(135deg, #2980b9 0%, #21618c 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(52, 152, 219, 0.4);
+}
+
+/* Position item suggestions container relatively for absolute popout positioning */
+.item-suggestions {
+    position: relative;
+}
+
+.item-suggestion {
+    position: relative;
+    cursor: pointer;
+}

@@ -3,15 +3,31 @@
 RewriteEngine On
 
 # Enable CORS headers for API calls
+# PRODUCTION NOTE: Change Access-Control-Allow-Origin from "*" to your specific domain
+# Example: Header set Access-Control-Allow-Origin "https://yourdomain.com"
 <IfModule mod_headers.c>
+    # For development: allows all origins
+    # For production: replace "*" with your domain using SetEnvIf or specific domain
     Header set Access-Control-Allow-Origin "*"
     Header set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
     Header set Access-Control-Allow-Headers "Content-Type, Authorization"
+    Header set Access-Control-Max-Age "3600"
 </IfModule>
 
 # Handle OPTIONS requests (CORS preflight)
 RewriteCond %{REQUEST_METHOD} OPTIONS
 RewriteRule ^(.*)$ $1 [R=200,L]
+
+# Block direct access to PHP files in root directory
+# Only API endpoints should be accessed directly
+RewriteCond %{REQUEST_URI} ^/[^/]+\.php [NC]
+RewriteCond %{REQUEST_URI} !^/api/ [NC]
+RewriteRule ^(.*)$ / [R=301,L]
+
+# Block access to common admin/config patterns
+RewriteCond %{REQUEST_URI} (admin|config|install|setup|phpmyadmin|database)\.php [NC,OR]
+RewriteCond %{REQUEST_URI} (wp-admin|wp-login|xmlrpc) [NC]
+RewriteRule ^(.*)$ / [R=301,L]
 
 # SPA routing - redirect all non-file/non-directory requests to index.html
 # This allows client-side routing to work when accessing URLs directly
@@ -59,7 +75,22 @@ RewriteRule ^(.*)$ index.html [L]
 
 # Security headers
 <IfModule mod_headers.c>
+    # Classic security headers
     Header set X-Frame-Options "SAMEORIGIN"
     Header set X-XSS-Protection "1; mode=block"
     Header set X-Content-Type-Options "nosniff"
+
+    # Modern security headers
+    # Content Security Policy - allows self, Google Fonts, and inline styles needed for dynamic content
+    # frame-src allows item database iframes, img-src allows both http and https for icon servers
+    Header set Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: http: https:; connect-src 'self'; frame-src http: https:; frame-ancestors 'self';"
+
+    # Permissions Policy - restrict browser features
+    Header set Permissions-Policy "geolocation=(), microphone=(), camera=(), payment=(), usb=(), magnetometer=(), gyroscope=(), speaker=()"
+
+    # Referrer Policy - control referrer information
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+
+    # Strict Transport Security (HSTS) - force HTTPS (only when using HTTPS)
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" env=HTTPS
 </IfModule>

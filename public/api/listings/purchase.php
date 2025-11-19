@@ -162,43 +162,43 @@ try {
 
         // Check if this is a high-value purchase (> 1 million platinum)
         // Only use alternate currency if enabled
-        $isHighValuePurchase = USE_ALT_CURRENCY && ($pricePlatinum > BITCOIN_VALUE_PLATINUM);
-        $bitcoinPayment = null;
+        $isHighValuePurchase = USE_ALT_CURRENCY && ($pricePlatinum > ALT_CURRENCY_VALUE_PLATINUM);
+        $altCurrencyPayment = null;
 
-        // Get Bitcoin availability for ALL purchases (may be needed for <1M too)
-        // Only check if alternate currency is enabled (getTotalBitcoin has internal check)
-        $bitcoinData = getTotalBitcoin($conn, $buyerCharId);
+        // Get alt currency availability for ALL purchases (may be needed for <1M too)
+        // Only check if alternate currency is enabled (getTotalAltCurrency has internal check)
+        $altCurrencyData = getTotalAltCurrency($conn, $buyerCharId);
         $availablePlatinum = $totalCopper / 1000;
 
         if ($availableCopper < $priceCopper) {
-            // Insufficient platinum alone - check if Bitcoin can help
-            error_log("Insufficient platinum ({$availablePlatinum}pp) for {$pricePlatinum}pp purchase. Checking Bitcoin...");
-            error_log("Bitcoin available - Inventory: {$bitcoinData['inventory']}, Alternate: {$bitcoinData['alternate']}");
+            // Insufficient platinum alone - check if alt currency can help
+            error_log("Insufficient platinum ({$availablePlatinum}pp) for {$pricePlatinum}pp purchase. Checking alt currency...");
+            error_log("Alt currency available - Inventory: {$altCurrencyData['inventory']}, Alternate: {$altCurrencyData['alternate']}");
 
             // Calculate payment with appropriate priority
-            // > 1M: Bitcoin first, < 1M: Platinum first
-            $payment = calculateBitcoinPayment($priceCopper, $availablePlatinum, $bitcoinData['total'], $isHighValuePurchase);
+            // > 1M: Alt currency first, < 1M: Platinum first
+            $payment = calculateAltCurrencyPayment($priceCopper, $availablePlatinum, $altCurrencyData['total'], $isHighValuePurchase);
 
             if ($payment['total_sufficient']) {
-                $bitcoinPayment = $payment;
+                $altCurrencyPayment = $payment;
                 error_log("Payment breakdown (" . $payment['payment_method'] . "): " . json_encode($payment));
             } else {
                 $priceInPP = round($priceCopper / 1000, 2);
                 $availableInPP = round($availableCopper / 1000, 2);
                 $pendingInPP = round($pendingCopper / 1000, 2);
 
-                if ($bitcoinData['total'] > 0) {
-                    throw new Exception("Insufficient funds. You need {$priceInPP}pp but only have {$availableInPP}pp and {$bitcoinData['total']} " . ALT_CURRENCY_NAME . ". " . ALT_CURRENCY_NAME . " is valued at " . number_format(BITCOIN_VALUE_PLATINUM) . " platinum each. Total value insufficient.");
+                if ($altCurrencyData['total'] > 0) {
+                    throw new Exception("Insufficient funds. You need {$priceInPP}pp but only have {$availableInPP}pp and {$altCurrencyData['total']} " . ALT_CURRENCY_NAME . ". " . ALT_CURRENCY_NAME . " is valued at " . number_format(ALT_CURRENCY_VALUE_PLATINUM) . " platinum each. Total value insufficient.");
                 } else {
                     throw new Exception("Insufficient funds. You need {$priceInPP}pp but only have {$availableInPP}pp available ({$pendingInPP}pp in pending payments). Pay your pending purchases at the Marketplace Broker NPC.");
                 }
             }
-        } elseif ($isHighValuePurchase && $bitcoinData['total'] > 0) {
-            // High-value purchase with sufficient platinum, but check if Bitcoin should be used anyway
-            // For >1M purchases, we prioritize Bitcoin even if platinum is sufficient
-            $payment = calculateBitcoinPayment($priceCopper, $availablePlatinum, $bitcoinData['total'], true);
-            if ($payment['bitcoin_to_deduct'] > 0) {
-                $bitcoinPayment = $payment;
+        } elseif ($isHighValuePurchase && $altCurrencyData['total'] > 0) {
+            // High-value purchase with sufficient platinum, but check if alt currency should be used anyway
+            // For >1M purchases, we prioritize alt currency even if platinum is sufficient
+            $payment = calculateAltCurrencyPayment($priceCopper, $availablePlatinum, $altCurrencyData['total'], true);
+            if ($payment['alt_currency_to_deduct'] > 0) {
+                $altCurrencyPayment = $payment;
                 error_log("High-value purchase: Using " . ALT_CURRENCY_NAME . "-first payment even though platinum is sufficient");
                 error_log("Payment breakdown: " . json_encode($payment));
             }
@@ -251,16 +251,16 @@ try {
                 'buyer_online' => true
             ];
 
-            if (USE_ALT_CURRENCY && $bitcoinPayment !== null && $bitcoinPayment['bitcoin_to_deduct'] > 0) {
+            if (USE_ALT_CURRENCY && $altCurrencyPayment !== null && $altCurrencyPayment['alt_currency_to_deduct'] > 0) {
                 if ($isHighValuePurchase) {
                     $message .= "{$priceInPP} platinum (will use " . ALT_CURRENCY_NAME . " first) and receive your item. Say 'pending' to the NPC.";
                 } else {
                     $message .= "{$priceInPP} platinum (will use " . ALT_CURRENCY_NAME . " if needed) and receive your item. Say 'pending' to the NPC.";
                 }
-                $transactionData['bitcoin_may_be_needed'] = $bitcoinPayment['bitcoin_to_deduct'];
-                $transactionData['platinum_may_be_needed'] = $bitcoinPayment['platinum_to_deduct'];
-                $transactionData['bitcoin_value_pp'] = BITCOIN_VALUE_PLATINUM;
-                $transactionData['payment_method'] = $bitcoinPayment['payment_method'];
+                $transactionData['alt_currency_may_be_needed'] = $altCurrencyPayment['alt_currency_to_deduct'];
+                $transactionData['platinum_may_be_needed'] = $altCurrencyPayment['platinum_to_deduct'];
+                $transactionData['alt_currency_value_pp'] = ALT_CURRENCY_VALUE_PLATINUM;
+                $transactionData['payment_method'] = $altCurrencyPayment['payment_method'];
             } else {
                 $message .= "{$priceInPP} platinum and receive your item. Say 'pending' to the NPC.";
             }
@@ -275,23 +275,23 @@ try {
             error_log("Buyer is OFFLINE. Processing automatic payment and delivery.");
 
             $platinumRefund = 0;
-            $bitcoinUsed = 0;
+            $altCurrencyUsed = 0;
             $platinumDeducted = 0;
 
-            // Handle Bitcoin payment if needed
-            if ($bitcoinPayment !== null && $bitcoinPayment['bitcoin_to_deduct'] > 0) {
-                error_log("Processing mixed payment (Bitcoin + Platinum): Method = {$bitcoinPayment['payment_method']}");
+            // Handle Alt currency payment if needed
+            if ($altCurrencyPayment !== null && $altCurrencyPayment['alt_currency_to_deduct'] > 0) {
+                error_log("Processing mixed payment (Alt currency + Platinum): Method = {$altCurrencyPayment['payment_method']}");
 
-                // Execute Bitcoin payment
-                $bitcoinResult = executeBitcoinPayment($conn, $buyerCharId, $bitcoinPayment['bitcoin_to_deduct']);
+                // Execute Alt currency payment
+                $altCurrencyResult = executeAltCurrencyPayment($conn, $buyerCharId, $altCurrencyPayment['alt_currency_to_deduct']);
 
-                if (!$bitcoinResult['success']) {
-                    throw new Exception("Failed to deduct Bitcoin: " . ($bitcoinResult['error'] ?? 'Unknown error'));
+                if (!$altCurrencyResult['success']) {
+                    throw new Exception("Failed to deduct alt currency: " . ($altCurrencyResult['error'] ?? 'Unknown error'));
                 }
 
-                $bitcoinUsed = $bitcoinResult['total_deducted'];
-                $platinumToDeduct = $bitcoinPayment['platinum_to_deduct'];
-                $platinumRefund = $bitcoinPayment['platinum_to_refund'];
+                $altCurrencyUsed = $altCurrencyResult['total_deducted'];
+                $platinumToDeduct = $altCurrencyPayment['platinum_to_deduct'];
+                $platinumRefund = $altCurrencyPayment['platinum_to_refund'];
 
                 // Calculate remaining platinum after deduction
                 $remainingCopper = $totalCopper - ($platinumToDeduct * 1000);
@@ -304,7 +304,7 @@ try {
 
                 $platinumDeducted = $platinumToDeduct;
 
-                error_log("Bitcoin payment successful: Used {$bitcoinUsed} Bitcoin (Inventory: {$bitcoinResult['from_inventory']}, Alternate: {$bitcoinResult['from_alternate']}), deducted {$platinumToDeduct}pp, refunded {$platinumRefund}pp");
+                error_log("Alt currency payment successful: Used {$altCurrencyUsed} alt currency (Inventory: {$altCurrencyResult['from_inventory']}, Alternate: {$altCurrencyResult['from_alternate']}), deducted {$platinumToDeduct}pp, refunded {$platinumRefund}pp");
 
                 // Update buyer's currency
                 $updateTable = ($currencyLocation === 'character_currency') ? 'character_currency' : 'character_data';
@@ -465,8 +465,6 @@ try {
             ]);
 
             // Create seller earnings record
-            error_log("PURCHASE DEBUG - Creating earnings: seller_id={$listing['seller_char_id']}, amount={$priceCopper}, listing_id={$listingId}");
-
             // Check if earnings already exist for this listing
             $checkStmt = $conn->prepare("
                 SELECT COUNT(*) as count FROM marketplace_seller_earnings
@@ -474,7 +472,6 @@ try {
             ");
             $checkStmt->execute([$listingId, $listing['seller_char_id']]);
             $existing = $checkStmt->fetch();
-            error_log("PURCHASE DEBUG - Existing earnings for this listing: {$existing['count']}");
 
             $stmt = $conn->prepare("
                 INSERT INTO marketplace_seller_earnings
@@ -488,7 +485,6 @@ try {
                 ':notes' => 'Sale of ' . $listing['item_name']
             ]);
             $earningsId = $conn->lastInsertId();
-            error_log("PURCHASE DEBUG - Earnings created successfully with ID: {$earningsId}");
 
             $conn->commit();
 
@@ -507,16 +503,16 @@ try {
                 'delivery_method' => 'parcel'
             ];
 
-            if ($bitcoinUsed > 0) {
+            if ($altCurrencyUsed > 0) {
                 if ($platinumRefund > 0) {
-                    $message .= "Paid with {$bitcoinUsed} Bitcoin and {$platinumDeducted}pp. Refunded {$platinumRefund}pp. The item has been sent via parcel - check your parcels in-game!";
+                    $message .= "Paid with {$altCurrencyUsed} alt currency and {$platinumDeducted}pp. Refunded {$platinumRefund}pp. The item has been sent via parcel - check your parcels in-game!";
                 } else {
-                    $message .= "Paid with {$bitcoinUsed} Bitcoin and {$platinumDeducted}pp. The item has been sent via parcel - check your parcels in-game!";
+                    $message .= "Paid with {$altCurrencyUsed} alt currency and {$platinumDeducted}pp. The item has been sent via parcel - check your parcels in-game!";
                 }
-                $transactionData['bitcoin_used'] = $bitcoinUsed;
+                $transactionData['alt_currency_used'] = $altCurrencyUsed;
                 $transactionData['platinum_deducted'] = $platinumDeducted;
                 $transactionData['platinum_refunded'] = $platinumRefund;
-                $transactionData['payment_method'] = $bitcoinPayment['payment_method'];
+                $transactionData['payment_method'] = $altCurrencyPayment['payment_method'];
             } else {
                 $message .= "{$priceInPP} platinum has been deducted from your character. The item has been sent via parcel - check your parcels in-game!";
             }

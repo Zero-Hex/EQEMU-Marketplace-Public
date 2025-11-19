@@ -976,3 +976,115 @@ body {
 .confirm-actions button {
     flex: 1;
 }
+
+/* ============================================================================
+   Modern Accessibility & Performance Improvements
+   ============================================================================ */
+
+/* Respect user's motion preferences - disable animations for users who prefer reduced motion */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+/* Respect user's color scheme preference - light mode support */
+@media (prefers-color-scheme: light) {
+    /* Light mode variables would go here if implementing light theme
+    :root {
+        --dark-bg: #f5f5f5;
+        --text-primary: #1a1a1a;
+        etc...
+    }
+    */
+}
+
+/* High contrast mode support for better accessibility */
+@media (prefers-contrast: high) {
+    :root {
+        --border-color: #ffffff;
+        --text-secondary: #ffffff;
+    }
+
+    .btn,
+    .listing-card,
+    .modal-content {
+        border-width: 2px;
+    }
+}
+
+/* CSS Containment for performance optimization */
+.listing-card,
+.wtb-card,
+.notification-item,
+.purchase-card {
+    contain: layout style paint;
+}
+
+/* Focus visible for keyboard navigation accessibility */
+:focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 2px;
+}
+
+/* Remove default focus for mouse users but keep for keyboard */
+:focus:not(:focus-visible) {
+    outline: none;
+}
+
+/* Improved link accessibility */
+a:focus-visible,
+button:focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 2px;
+}
+
+/* Skip to main content link for screen readers */
+.skip-to-main {
+    position: absolute;
+    top: -40px;
+    left: 0;
+    background: var(--accent-color);
+    color: var(--dark-bg);
+    padding: 8px;
+    text-decoration: none;
+    z-index: 100;
+}
+
+.skip-to-main:focus {
+    top: 0;
+}
+
+/* Improved text selection contrast */
+::selection {
+    background-color: var(--accent-color);
+    color: var(--dark-bg);
+}
+
+/* Better support for print media */
+@media print {
+    .main-header,
+    .main-footer,
+    .mobile-bottom-nav,
+    .btn,
+    .filters,
+    .pagination-controls {
+        display: none;
+    }
+
+    body {
+        background: white;
+        color: black;
+    }
+
+    .listing-card,
+    .wtb-card {
+        border: 1px solid #000;
+        break-inside: avoid;
+    }
+}

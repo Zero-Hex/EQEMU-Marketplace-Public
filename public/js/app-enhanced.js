@@ -489,12 +489,20 @@ if (typeof MarketplaceApp !== 'undefined') {
                         <p class="notif-message">${notif.message}</p>
                         <span class="notif-time">${timeAgo}</span>
                     </div>
-                    ${!notif.is_read ? '<button class="btn-mark-read btn-sm" onclick="app.markNotificationRead(' + notif.id + ')">Mark Read</button>' : ''}
+                    ${!notif.is_read ? '<button class="btn-mark-read btn-sm" data-notif-id="' + notif.id + '">Mark Read</button>' : ''}
                 </div>
             `;
         }).join('');
 
         container.innerHTML = html;
+
+        // Attach event listeners to all mark-read buttons
+        container.querySelectorAll('.btn-mark-read').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const notifId = parseInt(e.target.dataset.notifId);
+                this.markNotificationRead(notifId);
+            });
+        });
     };
 
     MarketplaceApp.prototype.getNotificationIcon = function(type) {
@@ -814,7 +822,7 @@ if (typeof MarketplaceApp !== 'undefined') {
                     </div>
                     <div class="item-actions">
                         ${wtb.status === 'active' ? `
-                            <button class="btn btn-secondary" onclick="event.stopPropagation(); app.cancelWTBListing(${wtb.id})">Cancel</button>
+                            <button class="btn btn-secondary btn-cancel-wtb" data-wtb-id="${wtb.id}">Cancel</button>
                         ` : ''}
                     </div>
                 </div>
@@ -822,6 +830,15 @@ if (typeof MarketplaceApp !== 'undefined') {
         }).join('');
 
         container.innerHTML = html;
+
+        // Add click handlers to cancel buttons
+        container.querySelectorAll('.btn-cancel-wtb').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const wtbId = parseInt(e.target.dataset.wtbId);
+                this.cancelWTBListing(wtbId);
+            });
+        });
 
         // Add click handlers to each WTB card to show item details
         container.querySelectorAll('.my-wtb-card').forEach(card => {
@@ -998,13 +1015,21 @@ if (typeof MarketplaceApp !== 'undefined') {
                         <p class="added-date">Added ${this.formatTimeAgo(item.created_date)}</p>
                     </div>
                     <div class="item-actions">
-                        <button class="btn btn-secondary" onclick="app.removeFromWatchlist(${item.id})">Remove</button>
+                        <button class="btn btn-secondary btn-remove-watchlist" data-watchlist-id="${item.id}">Remove</button>
                     </div>
                 </div>
             `;
         }).join('');
 
         container.innerHTML = html;
+
+        // Attach event listeners to remove buttons
+        container.querySelectorAll('.btn-remove-watchlist').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const watchlistId = parseInt(e.target.dataset.watchlistId);
+                this.removeFromWatchlist(watchlistId);
+            });
+        });
     };
 
     MarketplaceApp.prototype.showAddWatchlistModal = function() {
@@ -1117,9 +1142,12 @@ if (typeof MarketplaceApp !== 'undefined') {
         const container = document.getElementById(suggestionsId);
         if (!container) return;
 
-        const html = items.map(item => {
+        // Store items data for popout
+        this.currentItemSuggestions = items;
+
+        const html = items.map((item, index) => {
             return `
-                <div class="item-suggestion" data-id="${item.id}" data-name="${item.name}" onclick="app.selectItem(${item.id}, '${item.name}', '${context}')">
+                <div class="item-suggestion" data-id="${item.id}" data-name="${item.name}" data-context="${context}" data-item-index="${index}">
                     <span class="item-name">${item.name}</span>
                     <span class="item-id">#${item.id}</span>
                 </div>
@@ -1128,6 +1156,52 @@ if (typeof MarketplaceApp !== 'undefined') {
 
         container.innerHTML = html;
         container.style.display = 'block';
+
+        // Create inspection popout element if it doesn't exist
+        let popout = document.getElementById('item-inspection-popout');
+        if (!popout) {
+            popout = document.createElement('div');
+            popout.id = 'item-inspection-popout';
+            popout.className = 'item-inspection-popout';
+            document.body.appendChild(popout);
+
+            // Keep popout visible when hovering over it
+            popout.addEventListener('mouseenter', () => {
+                popout.classList.add('visible');
+            });
+
+            popout.addEventListener('mouseleave', () => {
+                this.hideItemInspectionPopout();
+            });
+        }
+
+        // Attach event listeners to all suggestions
+        container.querySelectorAll('.item-suggestion').forEach(suggestion => {
+            // Click to select
+            suggestion.addEventListener('click', (e) => {
+                const itemId = parseInt(suggestion.dataset.id);
+                const itemName = suggestion.dataset.name;
+                const ctx = suggestion.dataset.context;
+                this.selectItem(itemId, itemName, ctx);
+            });
+
+            // Hover to show inspection popout
+            suggestion.addEventListener('mouseenter', (e) => {
+                const itemIndex = parseInt(suggestion.dataset.itemIndex);
+                const item = this.currentItemSuggestions[itemIndex];
+                this.showItemInspectionPopout(item, suggestion);
+            });
+
+            suggestion.addEventListener('mouseleave', (e) => {
+                // Use a small delay to allow moving to the popout
+                setTimeout(() => {
+                    const popout = document.getElementById('item-inspection-popout');
+                    if (popout && !popout.matches(':hover')) {
+                        this.hideItemInspectionPopout();
+                    }
+                }, 100);
+            });
+        });
     };
 
     MarketplaceApp.prototype.hideItemSuggestions = function(context) {
@@ -1137,6 +1211,9 @@ if (typeof MarketplaceApp !== 'undefined') {
             container.innerHTML = '';
             container.style.display = 'none';
         }
+        // Also hide the inspection popout and clear stored items
+        this.hideItemInspectionPopout();
+        this.currentItemSuggestions = [];
     };
 
     MarketplaceApp.prototype.selectItem = function(itemId, itemName, context) {
@@ -1148,6 +1225,94 @@ if (typeof MarketplaceApp !== 'undefined') {
             document.getElementById('watchlist-item-id').value = itemId;
             document.getElementById('watchlist-item-search').value = itemName;
             this.hideItemSuggestions('watchlist');
+        }
+    };
+
+    MarketplaceApp.prototype.showItemInspectionPopout = function(item, targetElement) {
+        const popout = document.getElementById('item-inspection-popout');
+        if (!popout || !item) return;
+
+        // Build stats array - only show non-zero stats
+        const stats = [];
+        if (item.ac > 0) stats.push({ label: 'AC', value: item.ac });
+        if (item.hp > 0) stats.push({ label: 'HP', value: item.hp });
+        if (item.mana > 0) stats.push({ label: 'Mana', value: item.mana });
+        if (item.astr > 0) stats.push({ label: 'STR', value: item.astr });
+        if (item.asta > 0) stats.push({ label: 'STA', value: item.asta });
+        if (item.aagi > 0) stats.push({ label: 'AGI', value: item.aagi });
+        if (item.adex > 0) stats.push({ label: 'DEX', value: item.adex });
+        if (item.awis > 0) stats.push({ label: 'WIS', value: item.awis });
+        if (item.aint > 0) stats.push({ label: 'INT', value: item.aint });
+        if (item.acha > 0) stats.push({ label: 'CHA', value: item.acha });
+
+        // Build HTML
+        const iconHTML = item.icon && CONFIG.ICON_BASE_URL ?
+            `<img src="${CONFIG.ICON_BASE_URL}${item.icon}.png" alt="${item.name}">` :
+            '🎒';
+
+        const statsHTML = stats.length > 0 ?
+            stats.map(stat => `
+                <div class="item-inspection-stat">
+                    <span class="item-inspection-stat-label">${stat.label}:</span>
+                    <span class="item-inspection-stat-value">+${stat.value}</span>
+                </div>
+            `).join('') :
+            '<div class="item-inspection-no-stats">No combat stats</div>';
+
+        // Always show stacksize
+        const stacksize = item.stacksize || 1;
+
+        popout.innerHTML = `
+            <div class="item-inspection-header">
+                <div class="item-inspection-icon">${iconHTML}</div>
+                <div class="item-inspection-title">
+                    <h4 class="item-inspection-name">${this.escapeHtml(item.name)}</h4>
+                    <p class="item-inspection-id">Item ID: ${item.id}</p>
+                    <p class="item-inspection-stacksize">Stack Size: ${stacksize}</p>
+                </div>
+            </div>
+            <div class="item-inspection-body">
+                ${statsHTML}
+            </div>
+            <div class="item-inspection-footer">
+                <a href="http://65.49.60.92:8000/items/${item.id}" target="_blank" class="item-inspection-link">
+                    🔍 View Full Details
+                </a>
+            </div>
+        `;
+
+        // Position popout next to the target element
+        const rect = targetElement.getBoundingClientRect();
+        const popoutRect = popout.getBoundingClientRect();
+
+        // Try to position to the right first
+        let left = rect.right + 10;
+        let top = rect.top;
+
+        // If it goes off screen to the right, position to the left instead
+        if (left + 400 > window.innerWidth) {
+            left = rect.left - 410;
+        }
+
+        // If it goes off screen at the top, adjust
+        if (top < 0) {
+            top = 10;
+        }
+
+        // If it goes off screen at the bottom, adjust
+        if (top + 300 > window.innerHeight) {
+            top = window.innerHeight - 310;
+        }
+
+        popout.style.left = left + 'px';
+        popout.style.top = top + window.scrollY + 'px';
+        popout.classList.add('visible');
+    };
+
+    MarketplaceApp.prototype.hideItemInspectionPopout = function() {
+        const popout = document.getElementById('item-inspection-popout');
+        if (popout) {
+            popout.classList.remove('visible');
         }
     };
 
@@ -1416,8 +1581,8 @@ if (typeof MarketplaceApp !== 'undefined') {
                             ${augmentsHTML}
                         </div>
                         <div class="quick-view-actions">
-                            <button class="btn btn-primary" onclick="app.purchaseItem(${listing.id})">Purchase</button>
-                            <button class="btn btn-secondary" onclick="document.getElementById('quick-view-modal').classList.add('hidden')">Close</button>
+                            <button class="btn btn-primary" id="quick-view-purchase-btn" data-listing-id="${listing.id}">Purchase</button>
+                            <button class="btn btn-secondary" id="quick-view-close-btn">Close</button>
                         </div>
                     </div>
                     <div class="quick-view-iframe-container">
@@ -1429,6 +1594,23 @@ if (typeof MarketplaceApp !== 'undefined') {
                         </iframe>
                     </div>
                 `;
+
+                // Attach event listeners to buttons
+                const purchaseBtn = document.getElementById('quick-view-purchase-btn');
+                const closeBtn = document.getElementById('quick-view-close-btn');
+                const modal = document.getElementById('quick-view-modal');
+
+                if (purchaseBtn) {
+                    purchaseBtn.addEventListener('click', () => {
+                        this.showPurchaseConfirm(listing);
+                    });
+                }
+
+                if (closeBtn && modal) {
+                    closeBtn.addEventListener('click', () => {
+                        modal.classList.add('hidden');
+                    });
+                }
             } else {
                 content.innerHTML = '<div class="error">Failed to load item details</div>';
             }

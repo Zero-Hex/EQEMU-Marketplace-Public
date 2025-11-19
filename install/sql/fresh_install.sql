@@ -19,7 +19,7 @@
 --   7. marketplace_watchlist - User item watchlists
 --   8. marketplace_notifications - Notification system
 --   9. marketplace_linked_accounts - Multi-account support
---  10. wtb_pending_payments - WTB payment queue for online players
+--  10. marketplace_wtb_pending_payments - WTB payment queue for online players
 -- ============================================================================
 
 -- ============================================================================
@@ -230,7 +230,7 @@ CREATE TABLE IF NOT EXISTS marketplace_linked_accounts (
 -- 10. WTB PENDING PAYMENTS TABLE
 -- ============================================================================
 -- Stores payment requests for online WTB buyers to be processed by global controller
-CREATE TABLE IF NOT EXISTS wtb_pending_payments (
+CREATE TABLE IF NOT EXISTS marketplace_wtb_pending_payments (
     id INT AUTO_INCREMENT PRIMARY KEY,
     buyer_char_id INT NOT NULL,
     bitcoin_amount INT DEFAULT 0,

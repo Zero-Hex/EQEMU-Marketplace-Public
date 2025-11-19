@@ -1,0 +1,55 @@
+{
+  "name": "Solo Leveling Offline Bazaar",
+  "short_name": "SLOB Marketplace",
+  "description": "EverQuest Marketplace - Buy and sell items, create WTB orders, and manage your in-game economy",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1a1a2e",
+  "theme_color": "#d4af37",
+  "orientation": "any",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": [
+    "games",
+    "utilities"
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Browse Marketplace",
+      "short_name": "Marketplace",
+      "description": "Browse active item listings",
+      "url": "/#marketplace",
+      "icons": []
+    },
+    {
+      "name": "My Listings",
+      "short_name": "Listings",
+      "description": "View and manage your listings",
+      "url": "/#my-listings",
+      "icons": []
+    },
+    {
+      "name": "My Earnings",
+      "short_name": "Earnings",
+      "description": "Check and claim your earnings",
+      "url": "/#my-earnings",
+      "icons": []
+    }
+  ],
+  "related_applications": [],
+  "prefer_related_applications": false
+}

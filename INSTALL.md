@@ -97,7 +97,7 @@ MIN_LISTING_PRICE=1
 USE_ALT_CURRENCY=false
 ALT_CURRENCY_ITEM_ID=147623
 ALT_CURRENCY_VALUE_PLATINUM=1000000
-ALT_CURRENCY_NAME=Bitcoin
+ALT_CURRENCY_NAME=Alt Currency
 ```
 
 **Step 3: Import database schema**
@@ -135,17 +135,27 @@ nano /path/to/eqemu/server/quests/global/Marketplace_Broker.pl
 # Set: our $USE_ALT_CURRENCY = 1; (if enabled in .env)
 ```
 
-**Step 5: Configure Apache to listen on port 8080:**
+**Step 5: Configure Apache to listen on port 8080**
+
+**IMPORTANT:** You must modify TWO Apache configuration files.
+
+**File 1: ports.conf** (to enable port 8080)
+
+Edit: `/etc/apache2/ports.conf`
 
 ```bash
-# Add Listen directive for port 8080
 sudo nano /etc/apache2/ports.conf
-# Add this line: Listen 8080
 ```
 
-**Step 6: Configure Apache virtual host:**
+Add this line after the existing `Listen 80`:
+```apache
+Listen 80
+Listen 8080    # <--- Add this line to enable port 8080
+```
 
-**IMPORTANT:** Point DocumentRoot to the `public/` subdirectory, NOT the application root!
+**File 2: Virtual Host Configuration** (to configure the marketplace)
+
+Create: `/etc/apache2/sites-available/marketplace.conf`
 
 ```bash
 sudo nano /etc/apache2/sites-available/marketplace.conf
@@ -169,20 +179,59 @@ sudo nano /etc/apache2/sites-available/marketplace.conf
 </VirtualHost>
 ```
 
+**Note:** Use the full path to your installation directory (e.g., `/home/yourusername/marketplace/public`).
+
 **What this accomplishes:**
 - ✅ Only `public/` directory is web-accessible
 - ✅ `.env` file is NOT web-accessible (it's in parent directory)
 - ✅ `install/` scripts are NOT web-accessible (outside public/)
 - ✅ `public/api/config.php` loads `.env` from parent directory securely
 
+**Alternative: Using Symlink for Enhanced Security (Recommended)**
+
+Instead of pointing DocumentRoot directly to your installation, you can create a symlink in your web root. This provides an extra layer of separation.
+
 ```bash
-# Enable site and restart Apache
+# Create a symlink from /var/www/html/marketplace to your public directory
+sudo ln -s /home/yourusername/marketplace/public /var/www/html/marketplace
+```
+
+Then update your virtual host configuration:
+```apache
+<VirtualHost *:8080>
+    ServerName marketplace.local
+    DocumentRoot /var/www/html/marketplace  # Points to the symlink
+
+    <Directory /var/www/html/marketplace>
+        Options -Indexes +FollowSymLinks
+        AllowOverride All
+        Require all granted
+    </Directory>
+</VirtualHost>
+```
+
+**Benefits of symlink approach:**
+- Application files stored outside web root entirely (`/home/yourusername/marketplace/`)
+- Only the symlink exists in web root (`/var/www/html/marketplace` → `public/`)
+- Easy to update: replace symlink target without touching web root
+- Standard practice for Laravel and other modern frameworks
+
+**Enable the site and restart Apache:**
+
+After modifying both configuration files:
+
+```bash
+# Enable mod_rewrite (if not already enabled)
 sudo a2enmod rewrite
+
+# Enable the marketplace site
 sudo a2ensite marketplace.conf
+
+# Restart Apache to apply changes
 sudo systemctl restart apache2
 ```
 
-**Step 7: Set permissions**
+**Step 6: Set permissions**
 
 ```bash
 # Set proper ownership (adjust path to your installation)
@@ -194,7 +243,7 @@ find . -type f -exec chmod 644 {} \;
 find . -type d -exec chmod 755 {} \;
 ```
 
-**Step 8: Create the Marketplace Broker NPC in-game**
+**Step 7: Create the Marketplace Broker NPC in-game**
 
 ```
 #npcspawn Marketplace_Broker 1 0 0 0 0
@@ -256,7 +305,7 @@ JWT_SECRET=paste-secure-random-string-here
 USE_ALT_CURRENCY=false
 ALT_CURRENCY_ITEM_ID=147623
 ALT_CURRENCY_VALUE_PLATINUM=1000000
-ALT_CURRENCY_NAME=Bitcoin
+ALT_CURRENCY_NAME=Alt Currency
 ```
 
 **Step 3: Import database schema**
@@ -273,16 +322,19 @@ C:\xampp\mysql\bin\mysql -u root -p peq -e "SHOW TABLES LIKE 'marketplace_%';"
 
 **Step 4: Configure XAMPP to listen on port 8080**
 
+**IMPORTANT:** You must modify TWO Apache configuration files.
+
+**File 1: httpd.conf** (to enable port 8080)
+
 Edit: `C:\xampp\apache\conf\httpd.conf`
 
-Find the line with `Listen 80` and add below it:
+Find the line that says `Listen 80` (around line 50-60) and add below it:
 ```apache
-Listen 8080
+Listen 80
+Listen 8080    # <--- Add this line to enable port 8080
 ```
 
-**Step 5: Configure XAMPP Virtual Host**
-
-**IMPORTANT:** Point DocumentRoot to the `public\` subdirectory, NOT the application root!
+**File 2: httpd-vhosts.conf** (to configure the virtual host)
 
 Edit: `C:\xampp\apache\conf\extra\httpd-vhosts.conf`
 
@@ -314,14 +366,57 @@ Add at the end of the file:
 - ✅ `install\` scripts are NOT web-accessible (outside public\)
 - ✅ `public\api\config.php` loads `.env` from parent directory securely
 
-**Step 6: Restart Apache in XAMPP Control Panel**
+**Alternative: Using Symlink for Enhanced Security (Recommended)**
+
+Instead of pointing DocumentRoot directly to `C:/Marketplace/public`, you can create a symbolic link in your XAMPP htdocs folder. This provides an extra layer of separation.
+
+**IMPORTANT:** Run Command Prompt as Administrator for this.
+
+```cmd
+REM Open Command Prompt as Administrator
+REM Create a symbolic link (directory junction) in htdocs pointing to your public folder
+mklink /D C:\xampp\htdocs\marketplace C:\Marketplace\public
+```
+
+Then update your virtual host configuration to use the symlink:
+```apache
+<VirtualHost *:8080>
+    ServerName marketplace.local
+    DocumentRoot "C:/xampp/htdocs/marketplace"  # Points to the symlink
+
+    <Directory "C:/xampp/htdocs/marketplace">
+        Options -Indexes +FollowSymLinks
+        AllowOverride All
+        Require all granted
+    </Directory>
+
+    ErrorLog "C:/xampp/apache/logs/marketplace_error.log"
+    CustomLog "C:/xampp/apache/logs/marketplace_access.log" combined
+</VirtualHost>
+```
+
+**Benefits of symlink approach:**
+- Application files stored outside web root entirely (`C:\Marketplace\`)
+- Only the symlink exists in htdocs (`C:\xampp\htdocs\marketplace` → `C:\Marketplace\public`)
+- Easy to update: replace symlink target without touching htdocs
+- Standard practice for Laravel and other modern frameworks
+
+**To remove a symlink later (if needed):**
+```cmd
+rmdir C:\xampp\htdocs\marketplace
+```
+Note: This removes the link only, not the actual files.
+
+**Step 5: Restart Apache in XAMPP Control Panel**
+
+After modifying both configuration files:
 
 1. Open XAMPP Control Panel
 2. Stop Apache if running
 3. Start Apache
-4. Check for any error messages
+4. Check for any error messages in the XAMPP logs
 
-**Step 7: Create the Marketplace Broker NPC in-game**
+**Step 6: Create the Marketplace Broker NPC in-game**
 
 In-game commands (same for all platforms):
 
@@ -335,7 +430,7 @@ In-game commands (same for all platforms):
 #reloadquest
 ```
 
-**Step 8: Copy quest scripts to your EQEMU server**
+**Step 7: Copy quest scripts to your EQEMU server**
 
 ```cmd
 REM Copy from C:\Marketplace\install\quests\ to your EQEMU server's quests\global\ directory
@@ -423,35 +518,59 @@ sudo crontab -e
 
 **Directory structure (production):**
 
-For production environments, you can use a symlink approach similar to Laravel:
+For production environments, use a symlink approach (recommended):
 
+**Step 1: Install application outside web root**
 ```bash
-# Application directory outside web root
-/home/eqemu/marketplace/
-
-# Public symlink in web root
-/var/www/html/marketplace -> /home/eqemu/marketplace/public
+# Clone to a secure location outside web root
+cd /home/eqemu
+git clone https://github.com/Zero-Hex/eqemu-marketplace-solo.git marketplace
+cd marketplace
+cp .env_example .env
+nano .env  # Configure production settings
 ```
 
-```apache
-<VirtualHost *:8080>
-    ServerName marketplace.yourdomain.com
-    DocumentRoot /home/eqemu/marketplace/public
+**Step 2: Create symlink in web root**
+```bash
+# Create symbolic link from web root to public directory
+sudo ln -s /home/eqemu/marketplace/public /var/www/html/marketplace
+```
 
-    <Directory /home/eqemu/marketplace/public>
+**Result:**
+```
+/home/eqemu/marketplace/              # Application root (NOT web-accessible)
+├── .env                              # Production credentials
+├── install/                          # Quest scripts
+└── public/                           # Application files
+
+/var/www/html/marketplace -> /home/eqemu/marketplace/public  # Symlink (web-accessible)
+```
+
+**Step 3: Configure virtual host with symlink**
+```apache
+<VirtualHost *:443>
+    ServerName marketplace.yourdomain.com
+    DocumentRoot /var/www/html/marketplace  # Points to symlink
+
+    SSLEngine on
+    SSLCertificateFile /etc/letsencrypt/live/marketplace.yourdomain.com/fullchain.pem
+    SSLCertificateKeyFile /etc/letsencrypt/live/marketplace.yourdomain.com/privkey.pem
+
+    <Directory /var/www/html/marketplace>
         Options -Indexes +FollowSymLinks
         AllowOverride All
         Require all granted
     </Directory>
+
+    ErrorLog ${APACHE_LOG_DIR}/marketplace_error.log
+    CustomLog ${APACHE_LOG_DIR}/marketplace_access.log combined
 </VirtualHost>
 
-# Note: For production with SSL, use port 443 instead:
-# <VirtualHost *:443>
-#     SSLEngine on
-#     SSLCertificateFile /path/to/cert.pem
-#     SSLCertificateKeyFile /path/to/key.pem
-#     ...
-# </VirtualHost>
+# Redirect HTTP to HTTPS
+<VirtualHost *:80>
+    ServerName marketplace.yourdomain.com
+    Redirect permanent / https://marketplace.yourdomain.com/
+</VirtualHost>
 ```
 
 ---
@@ -468,7 +587,7 @@ By default, the marketplace uses **platinum-only** transactions. To enable a cus
 INSERT INTO items (id, name, lore, stackable, stacksize, charges, itemtype)
 VALUES (
     147623,                              -- Item ID
-    'Bitcoin',                           -- Currency name
+    'Alt Currency',                    -- Currency name
     'High-value marketplace currency',
     1,                                   -- Stackable
     1000,                                -- Stack size
@@ -483,7 +602,7 @@ VALUES (
 USE_ALT_CURRENCY=true
 ALT_CURRENCY_ITEM_ID=147623
 ALT_CURRENCY_VALUE_PLATINUM=1000000
-ALT_CURRENCY_NAME=Bitcoin
+ALT_CURRENCY_NAME=Alt Currency
 ```
 
 **3. Enable in `install/quests/Marketplace_Broker.pl`:**
@@ -492,10 +611,55 @@ ALT_CURRENCY_NAME=Bitcoin
 our $USE_ALT_CURRENCY = 1;
 our $ALT_CURRENCY_ITEM_ID = 147623;
 our $ALT_CURRENCY_VALUE_PP = 1000000;
-our $ALT_CURRENCY_NAME = 'Bitcoin';
+our $ALT_CURRENCY_NAME = 'Alt Currency';
 ```
 
 **Important:** Both `.env` and `Marketplace_Broker.pl` must have matching settings.
+
+---
+
+### Debug Mode (Quest Script Troubleshooting)
+
+The `Marketplace_Broker.pl` quest script includes a toggleable debug mode for troubleshooting item submission and WTB fulfillment issues.
+
+**Enable debug mode in `install/quests/Marketplace_Broker.pl`:**
+
+```perl
+# Line 30 - Toggle debug output
+our $DEBUG_MODE = 1;  # Set to 1 to enable, 0 to disable (default)
+```
+
+**What debug mode shows:**
+- Item slot analysis (which slots contain items)
+- Stack size/charges detection
+- Quantity calculations for stackable items
+- Database query results
+- WTB order matching logic
+- Payment calculations (platinum and alternate currency)
+- Parcel creation details
+
+**When to use debug mode:**
+- Items not listing correctly
+- Incorrect quantities being listed
+- WTB orders not matching
+- Payment calculation issues
+- General troubleshooting of NPC interactions
+
+**Example debug output:**
+```
+[DEBUG] ========== ITEMCOUNT HASH ==========
+[DEBUG] itemcount{1001} = 1
+[DEBUG] ====================================
+[DEBUG] Slot 1: Item 1001, charges: 20, quantity: 20
+[DEBUG] Total quantity for item 1001: 20
+```
+
+**After changing debug settings:**
+```
+#reloadquest
+```
+
+**Note:** Debug messages appear in yellow text (color 15) in the player's chat window. Disable debug mode in production to avoid message spam.
 
 ---
 
@@ -504,24 +668,23 @@ our $ALT_CURRENCY_NAME = 'Bitcoin';
 ### From a Previous Version
 
 ```bash
-# Backup database
+# Backup database first!
 mysqldump -u root -p peq > peq_backup_$(date +%Y%m%d).sql
 
 # Pull latest code
 cd /path/to/eqemu-marketplace-solo
 git pull origin main
 
-# Check for new migrations
-ls install/sql/migrations/
-
-# Run new migrations if any
-mysql -u root -p peq < install/sql/migrations/XX_new_migration.sql
-
 # Update quest scripts
 cp install/quests/*.pl /path/to/eqemu/server/quests/global/
 
+# Reload quests in-game
+#reloadquest
+
 # Clear browser cache and test
 ```
+
+**Note:** If database schema changes are needed, they will be documented in the release notes.
 
 ---
 
@@ -563,6 +726,23 @@ perl -MJSON -e 'print "JSON module OK\n"'
 tail -f /path/to/eqemu/logs/eqemu_debug.log
 ```
 
+**Items not listing or incorrect quantities:**
+```perl
+# Enable debug mode in install/quests/Marketplace_Broker.pl
+our $DEBUG_MODE = 1;  # Line 30
+
+# Copy to server and reload
+cp install/quests/Marketplace_Broker.pl /path/to/eqemu/server/quests/global/
+# In-game: #reloadquest
+
+# Debug messages will appear in yellow text showing:
+# - Item slot analysis
+# - Stack/charge detection
+# - Quantity calculations
+# - Payment processing
+```
+See "Debug Mode" section above for full details.
+
 **403 Forbidden errors:**
 ```bash
 # Check permissions
@@ -582,7 +762,8 @@ tail -f /var/log/apache2/marketplace_error.log
 ## Documentation
 
 - **[README.md](README.md)** - Project overview and features
-- **[install/sql/README.md](install/sql/README.md)** - Database migration guide
+- **[CONFIGURATION.md](CONFIGURATION.md)** - Comprehensive configuration reference
+- **[install/sql/README.md](install/sql/README.md)** - Database schema and installation guide
 
 ---
 

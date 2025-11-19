@@ -1,34 +1,20 @@
 // Configuration file for the EQEMU Marketplace
-const CONFIG = {
-    // API Base URL - Uses relative path to work on any domain/port
-    // This will automatically use the same protocol, domain, and port as the main site
-    API_BASE_URL: '/api',
+// This loads configuration from the server API on startup
+// All values are now stored in .env and served via /api/config/get.php
 
-    // Session storage keys
+// Default configuration (fallback if API fails)
+const DEFAULT_CONFIG = {
+    API_BASE_URL: '/api',
     STORAGE_KEYS: {
         USER: 'eqemu_user',
         TOKEN: 'eqemu_token',
         CHARACTERS: 'eqemu_characters'
     },
-
-    // Pagination
     ITEMS_PER_PAGE: 20,
-
-    // Currency conversion
     COPPER_TO_PLATINUM: 1000,
-
-    // Refresh intervals (in milliseconds)
-    REFRESH_INTERVAL: 30000, // 30 seconds
-
-    // Item icon base URL
-    // You can host EQ item icons or use a service like https://www.eqitems.com/
-    // Leave as empty string to use default emoji icons
+    REFRESH_INTERVAL: 30000,
     ICON_BASE_URL: '',
-    
-    // Default icon for items without images
     DEFAULT_ICON: '🎒',
-    
-    // Inventory slots mapping
     INVENTORY_SLOTS: {
         23: 'General Slot 1',
         24: 'General Slot 2',
@@ -40,6 +26,54 @@ const CONFIG = {
         30: 'General Slot 8'
     }
 };
+
+// Global CONFIG object - will be populated from API
+let CONFIG = { ...DEFAULT_CONFIG };
+
+// Load configuration from server
+async function loadConfig() {
+    try {
+        const response = await fetch('/api/config/get.php');
+        const data = await response.json();
+
+        if (data.success && data.config) {
+            // Map API config to frontend CONFIG object
+            CONFIG = {
+                API_BASE_URL: data.config.api_base_url,
+                STORAGE_KEYS: data.config.storage_keys,
+                ITEMS_PER_PAGE: data.config.items_per_page,
+                COPPER_TO_PLATINUM: data.config.copper_to_platinum,
+                REFRESH_INTERVAL: data.config.refresh_interval_ms,
+                ICON_BASE_URL: data.config.icon_base_url,
+                DEFAULT_ICON: data.config.default_icon,
+                ENABLE_ITEM_ICONS: data.config.enable_item_icons,
+                USE_ALT_CURRENCY: data.config.use_alt_currency,
+                ALT_CURRENCY: data.config.alt_currency,
+                INVENTORY_SLOTS: data.config.inventory_slots
+            };
+
+            return CONFIG;
+        } else {
+            console.warn('[Config] Failed to load from server, using defaults');
+            return CONFIG;
+        }
+    } catch (error) {
+        console.error('[Config] Error loading configuration:', error);
+        console.warn('[Config] Using default configuration');
+        return CONFIG;
+    }
+}
+
+// Initialize config on page load
+if (typeof window !== 'undefined') {
+    // Load config when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => loadConfig());
+    } else {
+        // DOM already loaded
+        loadConfig();
+    }
+}
 
 // Export for use in other scripts
 if (typeof module !== 'undefined' && module.exports) {

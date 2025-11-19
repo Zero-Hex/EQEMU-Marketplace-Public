@@ -7,7 +7,7 @@
 -- Drop Tables (order matters due to dependencies)
 -- ============================================================================
 
-DROP TABLE IF EXISTS wtb_pending_payments;
+DROP TABLE IF EXISTS marketplace_wtb_pending_payments;
 DROP TABLE IF EXISTS marketplace_wtb_fulfillments;
 DROP TABLE IF EXISTS marketplace_wtb;
 DROP TABLE IF EXISTS marketplace_watchlist;

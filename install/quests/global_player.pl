@@ -15,8 +15,8 @@ sub check_wtb_pending_payments {
 
     # Check for pending WTB payments for this character
     my $query = $db->prepare("
-        SELECT id, bitcoin_amount, platinum_copper, seller_name, item_id, item_name, quantity
-        FROM wtb_pending_payments
+        SELECT id, alt_currency_amount, platinum_copper, seller_name, item_id, item_name, quantity
+        FROM marketplace_wtb_pending_payments
         WHERE buyer_char_id = ? AND processed = FALSE
         ORDER BY created_at ASC
         LIMIT 1
@@ -36,7 +36,7 @@ sub check_wtb_pending_payments {
 
             # Mark payment as processed
             my $update = $db->prepare("
-                UPDATE wtb_pending_payments
+                UPDATE marketplace_wtb_pending_payments
                 SET processed = TRUE, processed_at = NOW()
                 WHERE id = ?
             ");
@@ -49,14 +49,14 @@ sub check_wtb_pending_payments {
             my $cancel_query = $db->prepare("
                 UPDATE marketplace_wtb
                 SET status = 'cancelled'
-                WHERE id = (SELECT wtb_order_id FROM wtb_pending_payments WHERE id = ?)
+                WHERE id = (SELECT wtb_order_id FROM marketplace_wtb_pending_payments WHERE id = ?)
             ");
             $cancel_query->execute($payment->{id});
             $cancel_query->finish();
 
             # Mark payment as processed (failed) so it doesn't retry
             my $update = $db->prepare("
-                UPDATE wtb_pending_payments
+                UPDATE marketplace_wtb_pending_payments
                 SET processed = TRUE, processed_at = NOW()
                 WHERE id = ?
             ");
@@ -68,20 +68,21 @@ sub check_wtb_pending_payments {
 
 sub process_wtb_payment {
     my ($db, $payment) = @_;
-    my $BITCOIN_ID = 147623;
-    my $bitcoin_paid = 0;
+    # IMPORTANT: This value MUST match ALT_CURRENCY_ITEM_ID in your .env file
+    my $ALT_CURRENCY_ITEM_ID = 147623;
+    my $alt_currency_paid = 0;
     my $platinum_paid = 0;
 
-    # Deduct Bitcoin if needed
-    if ($payment->{bitcoin_amount} > 0) {
+    # Deduct Alt Currency if needed
+    if ($payment->{alt_currency_amount} > 0) {
         # Remove from alternate currency first, then inventory
-        $client->RemoveAlternateCurrencyValue($BITCOIN_ID, $payment->{bitcoin_amount});
-        $client->RemoveItem($BITCOIN_ID, $payment->{bitcoin_amount});
-        $bitcoin_paid = 1;
-        $client->Message(15, "[Marketplace] Paid " . $payment->{bitcoin_amount} . " Bitcoin for WTB order");
+        $client->RemoveAlternateCurrencyValue($ALT_CURRENCY_ITEM_ID, $payment->{alt_currency_amount});
+        $client->RemoveItem($ALT_CURRENCY_ITEM_ID, $payment->{alt_currency_amount});
+        $alt_currency_paid = 1;
+        $client->Message(15, "[Marketplace] Paid " . $payment->{alt_currency_amount} . " Alt Currency for WTB order");
     }
 
-    # Deduct remaining platinum (after Bitcoin)
+    # Deduct remaining platinum (after Alt Currency)
     if ($payment->{platinum_copper} > 0) {
         my $copper_amount = $payment->{platinum_copper};
 
@@ -101,15 +102,15 @@ sub process_wtb_payment {
             $client->Message(15, "[Marketplace] Paid " . $pp . "pp for WTB order");
         } else {
             $client->Message(13, "[Marketplace ERROR] Failed to deduct platinum! Please contact a GM.");
-            # Don't return 0 here if Bitcoin was already taken - mark as processed to avoid re-trying
-            if (!$bitcoin_paid) {
+            # Don't return 0 here if Alt Currency was already taken - mark as processed to avoid re-trying
+            if (!$alt_currency_paid) {
                 return 0;
             }
         }
     }
 
     # Show completion message
-    if ($bitcoin_paid || $platinum_paid) {
+    if ($alt_currency_paid || $platinum_paid) {
         $client->Message(15, "Seller " . $payment->{seller_name} . " fulfilled your WTB order:");
         $client->Message(15, $payment->{quantity} . "x " . $payment->{item_name} . " - check your parcels!");
     }
